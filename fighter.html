@@ -9,16 +9,42 @@
     background-color: #f1f1f1;
   }
   </style>
-
+  <script src="./neural-net.js" charset="utf-8"></script>
 </head>
+
+
 <body onload="startEnvironment()">
   <!-- <button type="button" name="thrust" onclick="component.thrust()"></button> -->
 </body>
 <script>
 const AUTOMATION_ON = true;
+
+//set up neural network
+if(AUTOMATION_ON){
+  // TODO
+  let m0 = new Matrix(2,3,[
+    [2,1,4],
+    [3,2,5]
+  ]);
+  let m1 = new Matrix(2,3,[
+    [0,1,-1],
+    [4,0,5]
+  ]);
+  let m2 = new Matrix(2,2,[
+    [1,4],
+    [2,5]
+  ]);
+  // let arr = [4,5,6,7];
+  console.table(Matrix.transpose(m1).data);
+  // m0.randomWeights();
+  // console.table(Matrix.dot(m2,m1).data);
+  // console.table(m0.data);
+}
+
 function startEnvironment() {
   environment.start();
 }
+
 var environment = {
   counter : 1,
   dev : true,
@@ -154,7 +180,7 @@ var fighter = {
     if(this.target == true)
     {
       drawTarget(ctx, this.x,this.y, this.theta, this.height);
-      console.log('target');
+      // console.log('target');
       this.target = false;
     }
 
@@ -260,7 +286,7 @@ var fighter = {
     //check if fighter is too low
     if(this.alt <=0 )
     {
-      console.log('dead');
+      // console.log('dead');
       if(!environment.dev){
         this.alive = false;
       }
@@ -314,11 +340,14 @@ function updateEnvironment() {
     }
     fighter.newPos(); //calculate the new position
   }
-
-  if(environment.keys && environment.keys[38]){aa.up();}
-  if(environment.keys && environment.keys[40]){aa.down();}
-  if(environment.keys && environment.keys[37]){aa.lef();}
-  if(environment.keys && environment.keys[39]){aa.righ();}
+  if(!AUTOMATION_ON){
+    if(environment.keys && environment.keys[38]){aa.up();}
+    if(environment.keys && environment.keys[40]){aa.down();}
+    if(environment.keys && environment.keys[37]){aa.lef();}
+    if(environment.keys && environment.keys[39]){aa.righ();}
+  }else{
+    // AI control the ship
+  }
 
   // logTelemetry();
   fighter.update();
