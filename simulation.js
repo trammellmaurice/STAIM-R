@@ -1,30 +1,62 @@
 const AUTOMATION_ON = true;
 
 //neural network parameters
-const NUM_INPUTS = 2;
-const NUM_HIDDEN = 10;
-const NUM_OUTPUTS = 1;
-const NUM_SAMPLES = 100000;
-
-
+const NUM_INPUTS = 4; //fighter x and y , target x and y
+const NUM_HIDDEN = 20;
+const NUM_OUTPUTS = 2;
+const NUM_SAMPLES = 1000000; //number of samples to train
+const UP = 0;
+const DOWN = 1;
+const LEFT = 0;
+const RIGHT = 1;
+const OUTPUT_THRESHOLD = 0.25; //how close it needs to be to commit to moving
 //set up neural network
 var nn;
 if(AUTOMATION_ON){
   nn = new NeuralNetwork(NUM_INPUTS, NUM_HIDDEN, NUM_OUTPUTS);
-  //train the network
-  for (let i = 0; i < NUM_SAMPLES; i++){
-    //TEST XOR gate logic
-    let input0 = Math.round(Math.random(0));
-    let input1 = Math.round(Math.random(0));
-    let output = input0 == input1 ? 0 : 1;
-    nn.train([input0,input1],[output]);
-  }
-  // test output
-  console.log("0,0 = " + nn.feedForward([0,0]).data);
-  console.log("0,1 = " + nn.feedForward([0,1]).data);
-  console.log("1,0 = " + nn.feedForward([1,0]).data);
-  console.log("1,1 = " + nn.feedForward([1,1]).data);
 
+  //train the network
+  let fx, fy, tx, ty;
+  for (let i = 0; i < NUM_SAMPLES; i++){
+    //random fighter position
+    // TODO: may need to be updated
+    fx = Math.random() * window.innerWidth;
+    fy = Math.random() * window.innerHeight;
+    // console.log("fx" + fx);
+    // console.log("fy" + fy);
+
+    //random target positions
+    tx = Math.random() * window.innerWidth;
+    ty = Math.random() * window.innerHeight;
+    // console.log("tx" + tx);
+    // console.log("ty" + ty);
+
+    // calculate vector to fighter
+    let track_vector = findVector(tx,ty,fx,fy);
+
+    // determine how to move
+    let hor = track_vector[0] > 0 ? RIGHT : LEFT;
+    let ver = track_vector[1] > 0 ? DOWN : UP;
+
+    // train network
+    nn.train(normalizeInput(fx,fy,tx,ty), [hor,ver]);
+  }
+}
+
+function normalizeInput(fighterX, fighterY, targetX, targetY){
+  // normalize to between 0 and 1
+  let input = [];
+  input[0] = (fighterX/window.innerWidth);
+  input[1] = (fighterY/window.innerHeight);
+  input[2] = (targetX/window.innerWidth);
+  input[3] = (targetY/window.innerHeight);
+  return input;
+}
+function findVector(tx,ty,fx,fy) {
+  //calculate components
+  let vx = fx - tx;
+  let vy = fy - ty;
+  return [vx,vy];
 }
 
 function startEnvironment() {
@@ -332,7 +364,34 @@ function updateEnvironment() {
     if(environment.keys && environment.keys[37]){aa.lef();}
     if(environment.keys && environment.keys[39]){aa.righ();}
   }else{
-    // AI control the ship
+    //CONTROL AA
+    //prediction based on current data
+    let fx = fighter.x;
+    let fy = fighter.y;
+    let tx = aa.x;
+    let ty = aa.y;
+    let predict = nn.feedForward(normalizeInput(fx,fy,tx,ty)).data[0];
+    // console.log(predict);
+
+    //make movement (left or right)
+    let dLeft = Math.abs(predict[0] - LEFT);
+    let dRight = Math.abs(predict[0] - RIGHT);
+    //compare to OUTPUT_THRESHOLD
+    if(dLeft < OUTPUT_THRESHOLD){
+      aa.lef();
+    } else if(dRight < OUTPUT_THRESHOLD){
+      aa.righ();
+    }
+
+    //make movement (up or down)
+    let dUp = Math.abs(predict[1] - UP);
+    let dDown = Math.abs(predict[1] - DOWN);
+    //compare to OUTPUT_THRESHOLD
+    if(dUp < OUTPUT_THRESHOLD){
+      aa.up();
+    } else if(dDown < OUTPUT_THRESHOLD){
+      aa.down();
+    }
   }
 
   // logTelemetry();
