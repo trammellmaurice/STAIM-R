@@ -1,5 +1,5 @@
 const AUTOMATION_ON = true; //instantiate AI
-const DEV = false; //Developer mode (cant die)
+const DEV = true; //Developer mode (cant die)
 
 //neural network parameters
 const NUM_INPUTS = 4; //fighter x and y , target x and y
@@ -336,8 +336,8 @@ var fighter = {
     if(this.burn){ctx.fillText('burner: engaged',100,180);}else{ctx.fillText('burner: disengaged',100,180);}this.burn = false;
     if(this.targetLock()){
       if(fighter.flasher < 40){
-          ctx.fillStyle = "red";
-          ctx.fillText('AA target: locked', 20,210);//output telemetry data
+        ctx.fillStyle = "red";
+        ctx.fillText('AA target: locked', 20,210);//output telemetry data
       }else if(fighter.flasher > 90)
       {
         fighter.flasher = 0;
@@ -349,7 +349,7 @@ var fighter = {
     ctx.stroke();
   },
   targetLock : function(){
-    if(this.x < aa.x + TARGET_SIZE && this.x > aa.x - TARGET_SIZE){
+    if(this.x < aa.x + TARGET_SIZE && this.x > aa.x - TARGET_SIZE && aaGun){
       return true;
     }
     return false;
@@ -383,6 +383,10 @@ function updateEnvironment() {
     }
     fighter.newPos(); //calculate the new position
   }
+
+  logTelemetry();
+  fighter.update();
+
   if(!AUTOMATION_ON){
     if(environment.keys && environment.keys[38]){aa.up();}
     if(environment.keys && environment.keys[40]){aa.down();}
@@ -418,9 +422,6 @@ function updateEnvironment() {
       aa.down();
     }
   }
-
-  logTelemetry();
-  fighter.update();
   aa.update();
   fighter.hud();
   if(fighter.alive){fighter.drag();} //apply drag after calculating the new position
@@ -457,24 +458,24 @@ var aa = {
     if(this.x < 0){this.x = environment.canvas.width;}
     if(this.y > environment.canvas.height){this.y = 0;}
     if(this.y < 0){this.y = environment.canvas.height;}
-  if(aaGun){
-    ctx = environment.context;
-    ctx.moveTo(this.x,this.y);
-    ctx.strokeStyle = "#FF0000";
-    ctx.beginPath();
-    ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
-    ctx.stroke();
-  }},
-  righ : function(){
-    this.x+=TRACK_SPEED;
-  },
-  lef : function(){
-    this.x-=TRACK_SPEED;
-  },
-  up : function(){
-    this.y-=TRACK_SPEED;
-  },
-  down : function(){
-    this.y+=TRACK_SPEED;
+    if(aaGun){
+      ctx = environment.context;
+      ctx.moveTo(this.x,this.y);
+      ctx.strokeStyle = "#FF0000";
+      ctx.beginPath();
+      ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
+      ctx.stroke();
+    }},
+    righ : function(){
+      this.x+=TRACK_SPEED;
+    },
+    lef : function(){
+      this.x-=TRACK_SPEED;
+    },
+    up : function(){
+      this.y-=TRACK_SPEED;
+    },
+    down : function(){
+      this.y+=TRACK_SPEED;
+    }
   }
-}
