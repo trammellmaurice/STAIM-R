@@ -19,26 +19,31 @@
 <script>
 const AUTOMATION_ON = true;
 
+//neural network parameters
+const NUM_INPUTS = 2;
+const NUM_HIDDEN = 10;
+const NUM_OUTPUTS = 1;
+const NUM_SAMPLES = 100000;
+
+
 //set up neural network
+var nn;
 if(AUTOMATION_ON){
-  // TODO
-  let m0 = new Matrix(2,3,[
-    [2,1,4],
-    [3,2,5]
-  ]);
-  let m1 = new Matrix(2,3,[
-    [0,1,-1],
-    [4,0,5]
-  ]);
-  let m2 = new Matrix(2,2,[
-    [1,4],
-    [2,5]
-  ]);
-  // let arr = [4,5,6,7];
-  console.table(Matrix.transpose(m1).data);
-  // m0.randomWeights();
-  // console.table(Matrix.dot(m2,m1).data);
-  // console.table(m0.data);
+  nn = new NeuralNetwork(NUM_INPUTS, NUM_HIDDEN, NUM_OUTPUTS);
+  //train the network
+  for (let i = 0; i < NUM_SAMPLES; i++){
+    //TEST XOR gate logic
+    let input0 = Math.round(Math.random(0));
+    let input1 = Math.round(Math.random(0));
+    let output = input0 == input1 ? 0 : 1;
+    nn.train([input0,input1],[output]);
+  }
+  // test output
+  console.log("0,0 = " + nn.feedForward([0,0]).data);
+  console.log("0,1 = " + nn.feedForward([0,1]).data);
+  console.log("1,0 = " + nn.feedForward([1,0]).data);
+  console.log("1,1 = " + nn.feedForward([1,1]).data);
+
 }
 
 function startEnvironment() {
