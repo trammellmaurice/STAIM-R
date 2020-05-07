@@ -1,15 +1,24 @@
-const AUTOMATION_ON = true;
+const AUTOMATION_ON = true; //instantiate AI
+const DEV = false; //Developer mode (cant die)
 
 //neural network parameters
 const NUM_INPUTS = 4; //fighter x and y , target x and y
 const NUM_HIDDEN = 20;
 const NUM_OUTPUTS = 2;
-const NUM_SAMPLES = 1000000; //number of samples to train
+const NUM_SAMPLES = 100000; //number of samples to train
 const UP = 0;
 const DOWN = 1;
 const LEFT = 0;
 const RIGHT = 1;
 const OUTPUT_THRESHOLD = 0.25; //how close it needs to be to commit to moving
+
+
+//GAME CONSTANTS
+const TARGET_SIZE = 30;
+const TRACK_SPEED = 10;
+
+var aaGun = false; //trigger with altitude trip
+
 //set up neural network
 var nn;
 if(AUTOMATION_ON){
@@ -65,7 +74,6 @@ function startEnvironment() {
 
 var environment = {
   counter : 1,
-  dev : true,
   //create a canvas element
   canvas : document.createElement("canvas"),
   start : function() {
@@ -118,6 +126,7 @@ function drawTarget(ctx, x, y, ang,height){
 var fighter = {
   alive : true,
   counter : 0,
+  flasher : 0,
   //creating the fighter to control
   width : 15,
   height : 15,
@@ -138,15 +147,14 @@ var fighter = {
   airbrake : false,
   burn : false,
   alt : 1000, // should not go to 0 or crash || 0.1 list from thrust -0.1 from drag
-  // drag : 1, //stays constant
   Target : false,
   update : function(){
     ctx = environment.context;
-    if(fighter.alt <= 200){
+    if(this.alt <= 200){
       ctx.fillStyle = '#FFFAB3';
       ctx.fillRect(0,0,environment.canvas.width,environment.canvas.height);
     }
-    if(fighter.alt <= 100){
+    if(this.alt <= 100){
       ctx.fillStyle = '#FFCCCC';
       ctx.fillRect(0,0,environment.canvas.width,environment.canvas.height);
       if(this.counter < 40){
@@ -305,7 +313,7 @@ var fighter = {
     if(this.alt <=0 )
     {
       // console.log('dead');
-      if(!environment.dev){
+      if(!DEV){
         this.alive = false;
       }
       this.alt = 0;
@@ -326,9 +334,25 @@ var fighter = {
     if (this.airbrake){brake = 'engaged';}else{brake = 'disengaged';}this.airbrake = false;
     ctx.fillText('RB: '+brake,20,180);
     if(this.burn){ctx.fillText('burner: engaged',100,180);}else{ctx.fillText('burner: disengaged',100,180);}this.burn = false;
+    if(this.targetLock()){
+      if(fighter.flasher < 40){
+          ctx.fillStyle = "red";
+          ctx.fillText('AA target: locked', 20,210);//output telemetry data
+      }else if(fighter.flasher > 90)
+      {
+        fighter.flasher = 0;
+      }
+      fighter.flasher++;
+    }
     ctx.beginPath();
-    ctx.rect(10, 10, 230, 180);
+    ctx.rect(10, 10, 230, 220);
     ctx.stroke();
+  },
+  targetLock : function(){
+    if(this.x < aa.x + TARGET_SIZE && this.x > aa.x - TARGET_SIZE){
+      return true;
+    }
+    return false;
   }
 }
 //TODO: ADD OBSTACLES AND LAYERS (EVERY 100?)
@@ -338,7 +362,8 @@ var fighter = {
 //---------------------------------------------------------------------------
 function updateEnvironment() {
   environment.clear();
-  if(fighter.alive || environment.dev){ //ONLY ALLOW CONTROLS IF fighter IS ALIVE
+  if(fighter.alt <= 300 && fighter.alt >= 100){aaGun = true;}else{aaGun = false;}
+  if(fighter.alive || DEV){ //ONLY ALLOW CONTROLS IF fighter IS ALIVE
     if(environment.keys && environment.keys[87]){
       fighter.thrust();
       if(environment.keys && environment.keys[9]){fighter.climb();}
@@ -363,7 +388,7 @@ function updateEnvironment() {
     if(environment.keys && environment.keys[40]){aa.down();}
     if(environment.keys && environment.keys[37]){aa.lef();}
     if(environment.keys && environment.keys[39]){aa.righ();}
-  }else{
+  }else if(aaGun){
     //CONTROL AA
     //prediction based on current data
     let fx = fighter.x;
@@ -394,14 +419,11 @@ function updateEnvironment() {
     }
   }
 
-  // logTelemetry();
+  logTelemetry();
   fighter.update();
-  if(environment.dev){
-    aa.update();
-  }
+  aa.update();
   fighter.hud();
   if(fighter.alive){fighter.drag();} //apply drag after calculating the new position
-
   //check for key inputs
 }
 //Log the fighter telemetry data
@@ -419,38 +441,40 @@ function logTelemetry(clear = false) {
   console.log('thr:',fighter.thr,'yaw:',fighter.yaw,'ang:',fighter.angle);
   console.log('alt:',fighter.alt,'climb:',fighter.lift-fighter.fall);
   console.log('mox:',fighter.momentumx,'moy:',fighter.momentumy);//output telemetry data
+
+
 }
 //Anti Air - track a target
 //TODO: 2d Tracking
 //--------------------------------------------------------------------------------------------------------------
-if(environment.dev){
-  var aa = {
-    x : 20,
-    y : 20,
-    update : function() {
-      //check boundaries to loop
-      if(this.x > environment.canvas.width){this.x = 0;}
-      if(this.x < 0){this.x = environment.canvas.width;}
-      if(this.y > environment.canvas.height){this.y = 0;}
-      if(this.y < 0){this.y = environment.canvas.height;}
-      ctx = environment.context;
-      ctx.moveTo(this.x,this.y);
-      ctx.strokeStyle = "#FF0000";
-      ctx.beginPath();
-      ctx.arc(this.x,this.y, 30, 0.5*Math.PI, 2.5 * Math.PI);
-      ctx.stroke();
-    },
-    righ : function(){
-      this.x+=10;
-    },
-    lef : function(){
-      this.x-=10;
-    },
-    up : function(){
-      this.y-=10;
-    },
-    down : function(){
-      this.y+=10;
-    }
+
+var aa = {
+  x : 20,
+  y : 20,
+  update : function() {
+    //check boundaries to loop
+    if(this.x > environment.canvas.width){this.x = 0;}
+    if(this.x < 0){this.x = environment.canvas.width;}
+    if(this.y > environment.canvas.height){this.y = 0;}
+    if(this.y < 0){this.y = environment.canvas.height;}
+  if(aaGun){
+    ctx = environment.context;
+    ctx.moveTo(this.x,this.y);
+    ctx.strokeStyle = "#FF0000";
+    ctx.beginPath();
+    ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
+    ctx.stroke();
+  }},
+  righ : function(){
+    this.x+=TRACK_SPEED;
+  },
+  lef : function(){
+    this.x-=TRACK_SPEED;
+  },
+  up : function(){
+    this.y-=TRACK_SPEED;
+  },
+  down : function(){
+    this.y+=TRACK_SPEED;
   }
 }
