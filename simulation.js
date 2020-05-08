@@ -2,20 +2,29 @@ const AUTOMATION_ON = true; //instantiate AI
 const DEV = true; //Developer mode (cant die)
 
 //neural network parameters
-const NUM_INPUTS = 4; //fighter x and y , target x and y
+const NUM_INPUTS = 6; //fighter x and y , target x and y
 const NUM_HIDDEN = 20;
-const NUM_OUTPUTS = 2;
+const NUM_OUTPUTS = 3;
 const NUM_SAMPLES = 1000000; //number of samples to train
 const UP = 0;
 const DOWN = 1;
 const LEFT = 0;
 const RIGHT = 1;
+const LOW = 0;
+const HIGH = 1;
 const OUTPUT_THRESHOLD = 0.25; //how close it needs to be to commit to moving
 
-
 //GAME CONSTANTS
+//AA GUN
 const TARGET_SIZE = 30;
 const TRACK_SPEED = 10;
+const RAISE_SPEED = 8;
+const TARGET_THRESHOLD = 50;
+
+//FIGHTER CONSTANTS
+
+// BOTH CONSTANTS
+const MAX_HEIGHT = 1500
 
 var aaGun = true; //trigger with altitude trip
 
@@ -31,41 +40,49 @@ if(AUTOMATION_ON){
     // TODO: may need to be updated
     fx = Math.random() * window.innerWidth;
     fy = Math.random() * window.innerHeight;
+    fz = Math.random() * MAX_HEIGHT;
     // console.log("fx" + fx);
     // console.log("fy" + fy);
 
     //random target positions
     tx = Math.random() * window.innerWidth;
     ty = Math.random() * window.innerHeight;
+    tz = Math.random() * MAX_HEIGHT;
     // console.log("tx" + tx);
     // console.log("ty" + ty);
 
     // calculate vector to fighter
-    let track_vector = findVector(tx,ty,fx,fy);
+    let track_vector = findVector(tx,ty,tz,fx,fy,fz);
 
     // determine how to move
     let hor = track_vector[0] > 0 ? RIGHT : LEFT;
     let ver = track_vector[1] > 0 ? DOWN : UP;
+    let heig = track_vector[2] > 0 ? HIGH : LOW;
 
     // train network
-    nn.train(normalizeInput(fx,fy,tx,ty), [hor,ver]);
+    nn.train(normalizeInput(fx,fy,fz,tx,ty,tz), [hor,ver,heig]);
   }
 }
 
-function normalizeInput(fighterX, fighterY, targetX, targetY){
+function normalizeInput(fighterX, fighterY, fighterZ, targetX, targetY, targetZ){
   // normalize to between 0 and 1
   let input = [];
   input[0] = (fighterX/window.innerWidth);
   input[1] = (fighterY/window.innerHeight);
-  input[2] = (targetX/window.innerWidth);
-  input[3] = (targetY/window.innerHeight);
+  input[2] = (fighterZ/1500);
+
+  input[3] = (targetX/window.innerWidth);
+  input[4] = (targetY/window.innerHeight);
+  input[5] = (targetZ/1500);
+
   return input;
 }
-function findVector(tx,ty,fx,fy) {
+function findVector(tx,ty,tz,fx,fy,fz) {
   //calculate components
   let vx = fx - tx;
   let vy = fy - ty;
-  return [vx,vy];
+  let vz = fz - tz;
+  return [vx,vy,vz];
 }
 
 function startEnvironment() {
@@ -146,7 +163,7 @@ var fighter = {
   momentumy : 0,
   airbrake : false,
   burn : false,
-  alt : 1000, // should not go to 0 or crash || 0.1 list from thrust -0.1 from drag
+  alt : 500, // should not go to 0 or crash || 0.1 list from thrust -0.1 from drag
   Target : false,
   update : function(){
     ctx = environment.context;
@@ -303,7 +320,10 @@ var fighter = {
     this.fall += 5;
   },
   climb : function() {
-    this.lift += 10;
+    if(this.alt <= 1500)
+    {
+      this.lift += 10;
+    }
   },
   drop : function() {
     this.fall += 10;
@@ -364,7 +384,7 @@ function updateEnvironment() {
   environment.clear();
   if(AUTOMATION_ON)
   {
-    if(fighter.alt <= 300 && fighter.alt >= 100 ){aaGun = true;}else{aaGun = false;}
+    if(fighter.alt <= MAX_HEIGHT && fighter.alt >= 100 ){aaGun = true;}else{aaGun = false;}
   }
   if(fighter.alive || DEV){ //ONLY ALLOW CONTROLS IF fighter IS ALIVE
     if(environment.keys && environment.keys[87]){
@@ -387,7 +407,7 @@ function updateEnvironment() {
     fighter.newPos(); //calculate the new position
   }
 
-  logTelemetry();
+  // logTelemetry();
   fighter.update();
 
   if(!AUTOMATION_ON){
@@ -402,9 +422,11 @@ function updateEnvironment() {
     //prediction based on current data
     let fx = fighter.x;
     let fy = fighter.y;
+    let fz = fighter.alt;
     let tx = aa.x;
     let ty = aa.y;
-    let predict = nn.feedForward(normalizeInput(fx,fy,tx,ty)).data[0];
+    let tz = aa.z;
+    let predict = nn.feedForward(normalizeInput(fx,fy,fz,tx,ty,tz)).data[0];
     // console.log(predict);
 
     //make movement (left or right)
@@ -425,6 +447,16 @@ function updateEnvironment() {
       aa.up();
     } else if(dDown < OUTPUT_THRESHOLD){
       aa.down();
+    }
+
+    //make movement (raise or lower)
+    let dRaise = Math.abs(predict[2] - HIGH);
+    let dLower = Math.abs(predict[2] - LOW);
+    //compare to OUTPUT_THRESHOLD
+    if(dRaise < OUTPUT_THRESHOLD){
+      aa.raise();
+    } else if(dLower < OUTPUT_THRESHOLD){
+      aa.lower();
     }
   }
   aa.update();
@@ -482,16 +514,16 @@ var aa = {
       this.y+=TRACK_SPEED;
     },
     raise : function(){
-      this.z+=TRACK_SPEED
+      this.z+=RAISE_SPEED;
     },
     lower : function(){
-      this.z-=TRACK_SPEED
+      this.z-=RAISE_SPEED;
     },
     drawTarget : function(){
       ctx = environment.context;
       ctx.moveTo(this.x,this.y);
       // TODO: adjust target size to get smaller above and below the fighter's altitude
-      if(Math.abs(fighter.alt - this.z) >= 150){
+      if(Math.abs(fighter.alt - this.z) >= TARGET_THRESHOLD){
         ctx.strokeStyle = "gray";
         this.active = false;
       }
