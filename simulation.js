@@ -5,7 +5,7 @@ const DEV = true; //Developer mode (cant die)
 const NUM_INPUTS = 4; //fighter x and y , target x and y
 const NUM_HIDDEN = 20;
 const NUM_OUTPUTS = 2;
-const NUM_SAMPLES = 100000; //number of samples to train
+const NUM_SAMPLES = 1000000; //number of samples to train
 const UP = 0;
 const DOWN = 1;
 const LEFT = 0;
@@ -17,7 +17,7 @@ const OUTPUT_THRESHOLD = 0.25; //how close it needs to be to commit to moving
 const TARGET_SIZE = 30;
 const TRACK_SPEED = 10;
 
-var aaGun = false; //trigger with altitude trip
+var aaGun = true; //trigger with altitude trip
 
 //set up neural network
 var nn;
@@ -334,7 +334,7 @@ var fighter = {
     if (this.airbrake){brake = 'engaged';}else{brake = 'disengaged';}this.airbrake = false;
     ctx.fillText('RB: '+brake,20,180);
     if(this.burn){ctx.fillText('burner: engaged',100,180);}else{ctx.fillText('burner: disengaged',100,180);}this.burn = false;
-    if(this.targetLock()){
+    if(this.targetLock() && aa.active){
       if(fighter.flasher < 40){
         ctx.fillStyle = "red";
         ctx.fillText('AA target: locked', 20,210);//output telemetry data
@@ -362,7 +362,10 @@ var fighter = {
 //---------------------------------------------------------------------------
 function updateEnvironment() {
   environment.clear();
-  if(fighter.alt <= 300 && fighter.alt >= 100){aaGun = true;}else{aaGun = false;}
+  if(AUTOMATION_ON)
+  {
+    if(fighter.alt <= 300 && fighter.alt >= 100 ){aaGun = true;}else{aaGun = false;}
+  }
   if(fighter.alive || DEV){ //ONLY ALLOW CONTROLS IF fighter IS ALIVE
     if(environment.keys && environment.keys[87]){
       fighter.thrust();
@@ -388,10 +391,12 @@ function updateEnvironment() {
   fighter.update();
 
   if(!AUTOMATION_ON){
-    if(environment.keys && environment.keys[38]){aa.up();}
-    if(environment.keys && environment.keys[40]){aa.down();}
-    if(environment.keys && environment.keys[37]){aa.lef();}
-    if(environment.keys && environment.keys[39]){aa.righ();}
+    if(environment.keys && environment.keys[104]){aa.up();}
+    if(environment.keys && environment.keys[98]){aa.down();}
+    if(environment.keys && environment.keys[100]){aa.lef();}
+    if(environment.keys && environment.keys[102]){aa.righ();}
+    if(environment.keys && environment.keys[107]){aa.raise();}
+    if(environment.keys && environment.keys[13]){aa.lower();}
   }else if(aaGun){
     //CONTROL AA
     //prediction based on current data
@@ -446,12 +451,14 @@ function logTelemetry(clear = false) {
 
 }
 //Anti Air - track a target
-//TODO: 2d Tracking
+//TODO: 3d Tracking
 //--------------------------------------------------------------------------------------------------------------
 
 var aa = {
   x : 20,
   y : 20,
+  z : 0,
+  active : false,
   update : function() {
     //check boundaries to loop
     if(this.x > environment.canvas.width){this.x = 0;}
@@ -459,13 +466,9 @@ var aa = {
     if(this.y > environment.canvas.height){this.y = 0;}
     if(this.y < 0){this.y = environment.canvas.height;}
     if(aaGun){
-      ctx = environment.context;
-      ctx.moveTo(this.x,this.y);
-      ctx.strokeStyle = "#FF0000";
-      ctx.beginPath();
-      ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
-      ctx.stroke();
-    }},
+      this.drawTarget();
+    }
+  },
     righ : function(){
       this.x+=TRACK_SPEED;
     },
@@ -477,5 +480,27 @@ var aa = {
     },
     down : function(){
       this.y+=TRACK_SPEED;
+    },
+    raise : function(){
+      this.z+=TRACK_SPEED
+    },
+    lower : function(){
+      this.z-=TRACK_SPEED
+    },
+    drawTarget : function(){
+      ctx = environment.context;
+      ctx.moveTo(this.x,this.y);
+      // TODO: adjust target size to get smaller above and below the fighter's altitude
+      if(Math.abs(fighter.alt - this.z) >= 150){
+        ctx.strokeStyle = "gray";
+        this.active = false;
+      }
+      else{
+        ctx.strokeStyle = "#FF0000";
+        this.active = true;
+      }
+      ctx.beginPath();
+      ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
+      ctx.stroke();
     }
   }
