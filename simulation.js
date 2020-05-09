@@ -1,5 +1,5 @@
 const AUTOMATION_ON = true; //instantiate AI
-const DEV = true; //Developer mode (cant die)
+const DEV = false; //Developer mode (cant die)
 /***********************************************
 NEURAL NETWORK PARAMETERS
 *************************************************/
@@ -443,8 +443,8 @@ function updateEnvironment() {
         if(environment.keys && environment.keys[9]){fighter.climb();}
       }
     }
-    fighter.newPos(); //calculate the new position
   }
+    fighter.newPos(); //calculate the new position
   // logTelemetry();
   fighter.update();
   if(!AUTOMATION_ON){
