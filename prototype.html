@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <title>AI 3D Tracking Test</title>
+  <style media="screen">
+  canvas {
+    border:1px solid #d3d3d3;
+    background-color: #f1f1f1;
+  }
+  </style>
+  <script type="text/javascript">
+    "use strict";
+
+    const LOG_ON = true; //whether or not to show error logging
+    const LOG_FREQ = 10000;  // how often to show logs
+
+    //NEURAL NETWORK
+    class NeuralNetwork {
+      constructor(numInputs, numHidden, numOutputs) {
+        this._inputs = [];
+        this._hidden = [];
+        this._numInputs = numInputs;
+        this._numHidden = numHidden;
+        this._numOutputs = numOutputs;
+        this._bias0 = new Matrix(1, this._numHidden);
+        this._bias1 = new Matrix(1, this._numOutputs);
+        this._weights0 = new Matrix(this._numInputs, this._numHidden);
+        this._weights1 = new Matrix(this._numHidden, this._numOutputs);
+
+        //eror logging
+        this._logCount = LOG_FREQ;
+
+        //randomize the initial weights
+        this._bias0.randomWeights();
+        this._bias1.randomWeights();
+        this._weights0.randomWeights();
+        this._weights1.randomWeights();
+      }
+      get inputs(){
+        return this._inputs;
+      }
+
+      set inputs(inputs){
+        this._inputs = inputs;
+      }
+
+      get hidden(){
+        return this._hidden;
+      }
+
+      set hidden(hidden){
+        this._hidden = hidden;
+      }
+
+      get bias0(){
+        return this._bias0;
+      }
+
+      set bias0(bias){
+        this._bias0 = bias;
+      }
+
+      get bias1(){
+        return this._bias1;
+      }
+
+      set bias1(bias){
+        this._bias1 = bias;
+      }
+
+      get weights0(){
+        return this._weights0;
+      }
+
+      set weights0(weights){
+        this._weights0 = weights;
+      }
+
+      get weights1() {
+        return this._weights1;
+      }
+
+      set weights1(weights){
+        this._weights1 = weights;
+      }
+
+      get logCount() {
+        return this._logCount;
+      }
+
+      set logCount(count){
+        this._logCount = count;
+      }
+
+      feedForward(inputArray) {
+        //convert input array to a matrix
+        this.inputs = Matrix.convertFromArray(inputArray);
+
+        //find hidden values and pply activation function
+        this.hidden = Matrix.dot(this.inputs, this.weights0);
+        //apply bias
+        this.hidden = Matrix.add(this.hidden, this.bias0);
+        this.hidden = Matrix.map(this.hidden, x => sigmoid(x));
+
+        //find the output values and apply the activation function
+        let outputs = Matrix.dot(this.hidden, this.weights1);
+        //apply bias
+        outputs = Matrix.add(outputs, this.bias1);
+        outputs = Matrix.map(outputs, x => sigmoid(x));
+
+        return outputs;
+      }
+      //train using input and target arrays
+      train(inputArray, targetArray) {
+        //feed input data
+        let outputs = this.feedForward(inputArray);
+
+
+        //calculate the output errors
+        let targets = Matrix.convertFromArray(targetArray);
+        let outputErrors = Matrix.subtract(targets, outputs);
+
+        //error logging
+        if(LOG_ON){
+          if(this.logCount == LOG_FREQ){
+            console.log("AI Training Data Error: " + outputErrors.data[0][0]);
+          }
+          this.logCount--;
+          if(this.logCount == 0){
+            this.logCount = LOG_FREQ;
+          }
+        }
+        //calculate deltas
+        let outputDerivs = Matrix.map(outputs, x => sigmoid(x,true));
+        let outputDeltas = Matrix.multiply(outputErrors, outputDerivs);
+
+        //calculate hidden layer errors
+        let weights1T = Matrix.transpose(this.weights1);
+        let hiddenErrors = Matrix.dot(outputDeltas, weights1T);
+
+        //calculate hidden deltas
+        let hiddenDerivs = Matrix.map(this.hidden, x => sigmoid(x,true));
+        let hiddenDeltas = Matrix.multiply(hiddenErrors, hiddenDerivs);
+
+        //update the weights
+        let hiddenT = Matrix.transpose(this.hidden);
+        this.weights1 = Matrix.add(this.weights1, Matrix.dot(hiddenT, outputDeltas));
+        let inputsT = Matrix.transpose(this.inputs);
+        this.weights0 = Matrix.add(this.weights0, Matrix.dot(inputsT, hiddenDeltas));
+
+        // update biases
+        this.bias1 = Matrix.add(this.bias1, outputDeltas);
+        this.bias0 = Matrix.add(this.bias0, hiddenDeltas);
+
+      }
+    }
+
+    function sigmoid(x, deriv = false) {
+      if(deriv){
+          return x * (1 - x); //where x = sigmoid(x)
+      }
+      return 1 / (1 + Math.exp(-x));
+    }
+
+
+    /***************
+    * MATRIX FUNCTIONS
+    ***************/
+
+    class Matrix {
+      constructor(rows, cols, data = []) {
+        this._rows = rows;
+        this._cols = cols;
+        this._data = data;
+
+        //initialize with zeroes if no data provided
+        if(data == null || data.length == 0){
+          this._data = [];
+          for(let i = 0; i < this._rows; i++){
+            this._data[i] = [];
+            for(let j = 0; j < this._cols; j++)
+            {
+              this._data[i][j] = 0;
+            }
+          }
+        }else{
+          //check data integrity
+          if(data.length != rows || data[0].length != cols){
+            throw new Error("Incorrect dimensions");
+          }
+        }
+      }
+
+      get rows() {
+        return this._rows;
+      }
+
+      get cols() {
+        return this._cols;
+      }
+
+      get data() {
+        return this._data;
+      }
+
+      //add two matrices
+      static add(m0,m1) {
+        Matrix.checkDimensions(m0,m1);
+        let m = new Matrix(m0.rows, m0.cols);
+        for(let i = 0; i < m.rows; i++){
+          for(let j = 0; j < m.cols; j++){
+            m.data[i][j] = m0.data[i][j] + m1.data[i][j]
+          }
+        }
+        return m;
+      }
+
+      //check matrices have same dimensions
+      static checkDimensions(m0,m1){
+        if(m0.rows != m1.rows || m0.cols != m1.cols){
+          throw new Error("Inconsistent dimensions");
+        }
+      }
+
+      //convert array to 1 row Matrix
+      static convertFromArray(arr){
+        return new Matrix(1,arr.length, [arr]);
+      }
+
+      //dot product
+      static dot(m0,m1){
+        if(m0.cols != m1.rows){
+          throw new Error("Not dot compatible");
+        }
+        let m = new Matrix (m0.rows, m1.cols);
+        for(let i = 0; i < m.rows; i++){
+          for(let j = 0; j < m.cols; j++){
+            let sum = 0;
+            for(let k = 0; k < m0.cols; k++){
+              sum += m0.data[i][k] * m1.data[k][j];
+            }
+            m.data[i][j] = sum;
+          }
+        }
+        return m;
+      }
+
+      //apply a function to each cell of matrix
+      static map(m0, mFunction){
+        let m = new Matrix(m0.rows, m0.cols);
+        for(let i = 0; i < m.rows; i++){
+          for(let j = 0; j < m.cols; j++){
+            m.data[i][j] = mFunction(m0.data[i][j]);
+          }
+        }
+        return m;
+      }
+
+      //multiply two matrices (not dot product)
+      static multiply(m0,m1) {
+        Matrix.checkDimensions(m0,m1);
+        let m = new Matrix(m0.rows, m0.cols);
+        for(let i = 0; i < m.rows; i++){
+          for(let j = 0; j < m.cols; j++){
+            m.data[i][j] = m0.data[i][j] * m1.data[i][j]
+          }
+        }
+        return m;
+      }
+
+      //subtract two matrices
+      static subtract(m0,m1) {
+        Matrix.checkDimensions(m0,m1);
+        let m = new Matrix(m0.rows, m0.cols);
+        for(let i = 0; i < m.rows; i++){
+          for(let j = 0; j < m.cols; j++){
+            m.data[i][j] = m0.data[i][j] - m1.data[i][j]
+          }
+        }
+        return m;
+      }
+
+      //find the transpose of the matrix
+      static transpose(m0){
+        let m = new Matrix(m0.cols, m0.rows);
+        for(let i = 0; i < m0.rows; i++){
+          for(let j = 0; j < m0.cols; j++){
+            m.data[j][i] = m0.data[i][j];
+          }
+        }
+        return m;
+      }
+
+      //apply random weights between -1 and 1
+      randomWeights() {
+        for(let i = 0; i < this.rows; i++){
+          for(let j = 0;j < this.cols; j++){
+            this.data[i][j] = Math.random() * 2 - 1;
+          }
+
+        }
+      }
+    }
+  </script>
+</head>
+
+
+<body onload="startEnvironment()">
+  <!-- <button type="button" name="thrust" onclick="component.thrust()"></button> -->
+</body>
+<script type="text/javascript">
+  const AUTOMATION_ON = true; //instantiate AI
+  const DEV = true; //Developer mode (cant die)
+
+  //neural network parameters
+  const NUM_INPUTS = 6; //fighter x and y , target x and y
+  const NUM_HIDDEN = 20;
+  const NUM_OUTPUTS = 3;
+  const NUM_SAMPLES = 1000000; //number of samples to train
+  const UP = 0;
+  const DOWN = 1;
+  const LEFT = 0;
+  const RIGHT = 1;
+  const LOW = 0;
+  const HIGH = 1;
+  const OUTPUT_THRESHOLD = 0.25; //how close it needs to be to commit to moving
+
+  //GAME CONSTANTS
+  //AA GUN
+  const TARGET_SIZE = 30;
+  const TRACK_SPEED = 10;
+  const RAISE_SPEED = 8;
+  const TARGET_THRESHOLD = 50;
+
+  //FIGHTER CONSTANTS
+  KILL_COUNT = 500;
+
+  // BOTH CONSTANTS
+  const MAX_HEIGHT = 1500
+
+  var aaGun = true; //trigger with altitude trip
+
+  //set up neural network
+  var nn;
+  if(AUTOMATION_ON){
+    nn = new NeuralNetwork(NUM_INPUTS, NUM_HIDDEN, NUM_OUTPUTS);
+
+    //train the network
+    let fx, fy, tx, ty;
+    for (let i = 0; i < NUM_SAMPLES; i++){
+      //random fighter position
+      // TODO: may need to be updated
+      fx = Math.random() * window.innerWidth;
+      fy = Math.random() * window.innerHeight;
+      fz = Math.random() * MAX_HEIGHT;
+      // console.log("fx" + fx);
+      // console.log("fy" + fy);
+
+      //random target positions
+      tx = Math.random() * window.innerWidth;
+      ty = Math.random() * window.innerHeight;
+      tz = Math.random() * MAX_HEIGHT;
+      // console.log("tx" + tx);
+      // console.log("ty" + ty);
+
+      // calculate vector to fighter
+      let track_vector = findVector(tx,ty,tz,fx,fy,fz);
+
+      // determine how to move
+      let hor = track_vector[0] > 0 ? RIGHT : LEFT;
+      let ver = track_vector[1] > 0 ? DOWN : UP;
+      let heig = track_vector[2] > 0 ? HIGH : LOW;
+
+      // train network
+      nn.train(normalizeInput(fx,fy,fz,tx,ty,tz), [hor,ver,heig]);
+    }
+  }
+
+  function normalizeInput(fighterX, fighterY, fighterZ, targetX, targetY, targetZ){
+    // normalize to between 0 and 1
+    let input = [];
+    input[0] = (fighterX/window.innerWidth);
+    input[1] = (fighterY/window.innerHeight);
+    input[2] = (fighterZ/1500);
+
+    input[3] = (targetX/window.innerWidth);
+    input[4] = (targetY/window.innerHeight);
+    input[5] = (targetZ/1500);
+
+    return input;
+  }
+  function findVector(tx,ty,tz,fx,fy,fz) {
+    //calculate components
+    let vx = fx - tx;
+    let vy = fy - ty;
+    let vz = fz - tz;
+    return [vx,vy,vz];
+  }
+
+  function startEnvironment() {
+    environment.start();
+  }
+
+  var environment = {
+    counter : 1,
+    clock : 0,
+    //create a canvas element
+    canvas : document.createElement("canvas"),
+    start : function() {
+      this.canvas.width = window.innerWidth;
+      this.canvas.height = window.innerHeight;
+      this.context = this.canvas.getContext("2d");
+      document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+      this.interval = setInterval(updateEnvironment, 20);
+      //add listeners for keys
+      window.addEventListener('keydown',function(e){
+        e.preventDefault();
+        environment.keys = (environment.keys || []);
+        environment.keys[e.keyCode] = (e.type == "keydown");
+      })
+      window.addEventListener('keyup',function (e){
+        environment.keys[e.keyCode] = (e.type == "keydown");
+      })
+    },
+    clear : function() { //clear the board of everything before updating
+      this.context.clearRect(0,0,this.canvas.width,this.canvas.height);
+    }
+  }
+  //stuff to get the canvas running and update it^^
+  //--------------------------------------------
+  //Triangle stuff (draw it with the x,y at centroid)
+  function drawTriangle(ctx, x, y, ang, width, height){
+    ctx.translate(x,y);
+    ctx.rotate(ang);
+    ctx.strokeStyle = "black";
+    ctx.beginPath();
+    ctx.moveTo(0, 0-height/2);
+    ctx.lineTo(0-width/2, 0+height/2);
+    ctx.lineTo(0+width/2, 0+height/2);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  //DRAW target
+  function drawTarget(ctx, x, y, ang,height){
+    ctx.translate(x,y);
+    ctx.rotate(ang);
+    ctx.strokeStyle = "red";
+    ctx.beginPath();
+    // ctx.moveTo(0, -30);
+    ctx.arc(0,-60, 30, 0.5*Math.PI, 2.5 * Math.PI);
+    // ctx.closePath();
+    ctx.stroke();
+  }
+  //General fighter variable
+  //------------------------------------------------------------
+  var fighter = {
+    alive : true,
+    counter : 0,
+    flasher : 0,
+    //creating the fighter to control
+    width : 15,
+    height : 15,
+    x : window.innerWidth/2, //current position
+    y : window.innerHeight/2, //current position
+    vx : 0,
+    vy : 0,
+    thr : 0, //will add to velocity instantly
+    thrx : 0,
+    thry : 0,
+    yaw : 0, //will be positive or negative to adjust angle
+    theta : 0,
+    angle : 0,//for telemetry data
+    fall : 0,
+    lift : 0,
+    momentumx : 0, //can be used to keep the fighter moving?
+    momentumy : 0,
+    airbrake : false,
+    burn : false,
+    alt : 500, // should not go to 0 or crash || 0.1 list from thrust -0.1 from drag
+    Target : false,
+    update : function(){
+      ctx = environment.context;
+      if(this.alt <= 200){
+        ctx.fillStyle = '#FFFAB3';
+        ctx.fillRect(0,0,environment.canvas.width,environment.canvas.height);
+      }
+      if(this.alt <= 100){
+        ctx.fillStyle = '#FFCCCC';
+        ctx.fillRect(0,0,environment.canvas.width,environment.canvas.height);
+        if(this.counter < 40){
+          ctx.fillStyle = "black";
+          ctx.fillText('**__LOW__ALTITUDE__**',20,environment.canvas.height-20);
+          ctx.fillText('**__LOW__ALTITUDE__**',120,environment.canvas.height-20);
+          ctx.fillText('**__LOW__ALTITUDE__**',220,environment.canvas.height-20);
+          ctx.fillText('**__LOW__ALTITUDE__**',320,environment.canvas.height-20);
+          ctx.fillText('**__LOW__ALTITUDE__**',420,environment.canvas.height-20);
+          ctx.fillText('**__LOW__ALTITUDE__**',20,environment.canvas.height-60);
+          ctx.fillText('**__LOW__ALTITUDE__**',120,environment.canvas.height-60);
+          ctx.fillText('**__LOW__ALTITUDE__**',220,environment.canvas.height-60);
+          ctx.fillText('**__LOW__ALTITUDE__**',320,environment.canvas.height-60);
+          ctx.fillText('**__LOW__ALTITUDE__**',420,environment.canvas.height-60);
+          ctx.fillText('**__LOW__ALTITUDE__**',20,environment.canvas.height-100);
+          ctx.fillText('**__LOW__ALTITUDE__**',120,environment.canvas.height-100);
+          ctx.fillText('**__LOW__ALTITUDE__**',220,environment.canvas.height-100);
+          ctx.fillText('**__LOW__ALTITUDE__**',320,environment.canvas.height-100);
+          ctx.fillText('**__LOW__ALTITUDE__**',420,environment.canvas.height-100);
+
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-20,20);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-120,20);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-220,20);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-320,20);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-420,20);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-20,60);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-120,60);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-220,60);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-320,60);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-420,60);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-20,100);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-120,100);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-220,100);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-320,100);
+          ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-420,100);
+        }else if(this.counter > 90)
+        {
+          this.counter = 0;
+        }
+        this.counter++;
+        // this.counter = 0;
+      }
+      ctx.save();
+
+      drawTriangle(ctx, this.x, this.y, this.theta, this.width, this.height);
+
+      ctx.restore();
+      ctx.save();
+      if(this.target == true)
+      {
+        drawTarget(ctx, this.x,this.y, this.theta, this.height);
+        // console.log('target');
+        this.target = false;
+      }
+
+      ctx.restore();
+
+      // console.log('tx:',this.thrx,'ty:',this.thry); //optional telemetry for thrust
+    },
+    newPos : function(){
+      this.theta += this.yaw * Math.PI / 180;
+      this.angle += this.yaw; //for telemetry data
+      if(this.angle >= 360){this.angle-=360;}
+      if(this.angle < 0){this.angle+=360;}
+      this.thrx = this.thr * Math.sin(this.theta);
+      this.thry = this.thr * Math.cos(this.theta);
+      if(Math.abs(this.thrx) > 0){this.momentumx = this.thrx;}
+      if(Math.abs(this.thry) > 0){this.momentumy = this.thry;}
+
+      //check gravity v lift
+      this.gravity();
+      this.alt += this.lift - this.fall;
+      //add momentum
+      if(Math.sqrt(Math.pow(this.vx,2) + Math.pow(this.vy,2)) < 9.9){
+        // console.log('ye');
+        this.vx += this.momentumx;
+        this.vy += this.momentumy;
+      }
+
+      //check boundaries to loop
+      if(this.x > environment.canvas.width){this.x = 0;}
+      if(this.x < 0){this.x = environment.canvas.width;}
+      if(this.y > environment.canvas.height){this.y = 0;}
+      if(this.y < 0){this.y = environment.canvas.height;}
+
+      this.x += this.vx;
+      this.y -= this.vy;
+    },
+    thrust : function(){
+      //Todo: increase acceleration
+      //Todo: adjust for angle
+      if(!this.burn)
+      {
+        this.thr = 10;
+      }
+      else{
+        this.thr = 17;
+      }
+      this.lift = 5;
+    },
+    break : function(){
+
+    },
+    turn : function(dir){
+      //change angle of fighter
+      if(dir == -1){
+        this.yaw-=5;
+      }
+      else if(dir == 1){
+        this.yaw+=5;
+      }
+    },
+    drag : function(){
+      if(!this.airbrake){
+        //stop changes so they dont go on forever
+        if(this.momentumx > 0){
+          this.momentumx -= 0.1;
+        }
+        else if(this.momentumx < 0){
+          this.momentumx += 0.1;
+        }
+        if(this.momentumy > 0){
+          this.momentumy -= 0.1;
+        }
+        else if(this.momentumy < 0){
+          this.momentumy += 0.1;
+        }
+      }
+      else{
+        this.momentumx = 0;
+        this.momentumy = 0;
+      }
+      this.lift = 0;
+      this.fall = 0;
+      this.vx = 0;
+      this.vy = 0;
+      this.thr = 0;
+      // this.airbrake = false;
+      this.yaw = 0; //set yaw back to 0 after the movement
+      this.ground();
+    },
+    laze : function(){
+      this.target = true;
+    },
+    gravity : function() {
+      this.fall += 5;
+    },
+    climb : function() {
+      if(this.alt <= MAX_HEIGHT)
+      {
+        this.lift += 10;
+      } else{
+        this.alt = MAX_HEIGHT;
+      }
+    },
+    drop : function() {
+      this.fall += 10;
+    },
+    ground : function() {
+      //check if fighter is too low
+      if(this.alt <=0 )
+      {
+        // console.log('dead');
+        if(!DEV){
+          this.alive = false;
+        }
+        this.alt = 0;
+      }
+    },
+    //HUD  telemetry indication
+    //--------------------------------------------
+    hud : function(){
+      ctx = environment.context;
+      ctx.fillStyle = "black";
+      ctx.strokeStyle = "black";
+      //update telemetry
+      ctx.fillText('x:'+this.x.toFixed().toString()+'  y:'+this.y.toFixed().toString()+'  alt:'+this.alt.toFixed().toString()+'m',20,20);
+      ctx.fillText('vx:'+this.vx.toFixed().toString()+'m/s'+'  vy:'+this.vy.toFixed().toString()+'m/s'+'  at-ang:'+fighter.angle.toFixed().toString()+'°', 20, 60);
+      ctx.fillText('thr:'+this.thr.toFixed().toString()+'m/sE2'+'  climb:'+(this.lift-this.fall).toFixed().toString()+ 'm/s'+'  yaw:'+this.yaw.toFixed().toString()+'°',20,100);
+      ctx.fillText('mox:'+this.momentumx.toFixed().toString()+'m/s'+'  moy:'+this.momentumy.toFixed().toString()+'m/s',20,140);
+      var brake;
+      if (this.airbrake){brake = 'engaged';}else{brake = 'disengaged';}this.airbrake = false;
+      ctx.fillText('RB: '+brake,20,180);
+      if(this.burn){ctx.fillText('burner: engaged',100,180);}else{ctx.fillText('burner: disengaged',100,180);}this.burn = false;
+      if(this.targetLock() && aa.active){
+        if(fighter.flasher < 40){
+          ctx.fillStyle = "red";
+          ctx.fillText('AA target: locked', 20,210);//output telemetry data
+        }else if(fighter.flasher > 90)
+        {
+          fighter.flasher = 0;
+        }
+        fighter.flasher++;
+      }
+      ctx.beginPath();
+      ctx.rect(10, 10, 230, 220);
+      ctx.stroke();
+    },
+    targetLock : function(){
+      if(this.x < aa.x + TARGET_SIZE && this.x > aa.x - TARGET_SIZE && aaGun){
+        return true;
+      }
+      return false;
+    }
+  }
+  //TODO: ADD OBSTACLES AND LAYERS (EVERY 100?)
+  //----------------------------------------------------------------------------------------------------
+
+  //Updating the environment and fighters
+  //---------------------------------------------------------------------------
+  function updateEnvironment() {
+    environment.clear();
+    if(AUTOMATION_ON)
+    {
+      if(fighter.alt <= MAX_HEIGHT && fighter.alt >= 100 ){aaGun = true;}else{aaGun = false;}
+    }
+    if(fighter.alive || DEV){ //ONLY ALLOW CONTROLS IF fighter IS ALIVE
+      if(environment.keys && environment.keys[87]){
+        fighter.thrust();
+        if(environment.keys && environment.keys[9]){fighter.climb();}
+      }
+      if(environment.keys && environment.keys[65]){fighter.turn(-1);}
+      if(environment.keys && environment.keys[68]){fighter.turn(1);}
+      if(environment.keys && environment.keys[32]){fighter.laze();}
+      if(environment.keys && environment.keys[16]){fighter.drop();}
+      if(environment.keys && environment.keys[83]){fighter.airbrake = true;fighter.drag();}
+      if(environment.keys && environment.keys[66])
+      {
+        if(environment.keys && environment.keys[87])
+        {
+          fighter.burn = true;fighter.thrust();
+          if(environment.keys && environment.keys[9]){fighter.climb();}
+        }
+      }
+      fighter.newPos(); //calculate the new position
+    }
+
+    // logTelemetry();
+    fighter.update();
+
+    if(!AUTOMATION_ON){
+      if(environment.keys && environment.keys[104]){aa.up();}
+      if(environment.keys && environment.keys[98]){aa.down();}
+      if(environment.keys && environment.keys[100]){aa.lef();}
+      if(environment.keys && environment.keys[102]){aa.righ();}
+      if(environment.keys && environment.keys[107]){aa.raise();}
+      if(environment.keys && environment.keys[13]){aa.lower();}
+    }else if(aaGun){
+      //CONTROL AA
+      //prediction based on current data
+      let fx = fighter.x;
+      let fy = fighter.y;
+      let fz = fighter.alt;
+      let tx = aa.x;
+      let ty = aa.y;
+      let tz = aa.z;
+      let predict = nn.feedForward(normalizeInput(fx,fy,fz,tx,ty,tz)).data[0];
+      // console.log(predict);
+
+      //make movement (left or right)
+      let dLeft = Math.abs(predict[0] - LEFT);
+      let dRight = Math.abs(predict[0] - RIGHT);
+      //compare to OUTPUT_THRESHOLD
+      if(dLeft < OUTPUT_THRESHOLD){
+        aa.lef();
+      } else if(dRight < OUTPUT_THRESHOLD){
+        aa.righ();
+      }
+
+      //make movement (up or down)
+      let dUp = Math.abs(predict[1] - UP);
+      let dDown = Math.abs(predict[1] - DOWN);
+      //compare to OUTPUT_THRESHOLD
+      if(dUp < OUTPUT_THRESHOLD){
+        aa.up();
+      } else if(dDown < OUTPUT_THRESHOLD){
+        aa.down();
+      }
+
+      //make movement (raise or lower)
+      let dRaise = Math.abs(predict[2] - HIGH);
+      let dLower = Math.abs(predict[2] - LOW);
+      //compare to OUTPUT_THRESHOLD
+      if(dRaise < OUTPUT_THRESHOLD){
+        aa.raise();
+      } else if(dLower < OUTPUT_THRESHOLD){
+        aa.lower();
+      }
+    }
+    aa.update();
+    fighter.hud();
+    if(fighter.alive){fighter.drag();} //apply drag after calculating the new position
+    //check for key inputs
+  }
+  //Log the fighter telemetry data
+  //-----------------------------------------------------------------------------------------
+  function logTelemetry(clear = false) {
+    if((environment.counter % 15 == 0) && clear)
+    {
+      console.clear();
+      environment.counter = 1;
+    }
+    else{
+      environment.counter++;
+    }
+    console.log('x:',fighter.x,'y:',fighter.y,'vx:',fighter.vx,'vy:',fighter.vy);
+    console.log('thr:',fighter.thr,'yaw:',fighter.yaw,'ang:',fighter.angle);
+    console.log('alt:',fighter.alt,'climb:',fighter.lift-fighter.fall);
+    console.log('mox:',fighter.momentumx,'moy:',fighter.momentumy);//output telemetry data
+
+
+  }
+  //Anti Air - track a target
+  //TODO: 3d Tracking
+  //--------------------------------------------------------------------------------------------------------------
+
+  var aa = {
+    x : 20,
+    y : 20,
+    z : 0,
+    active : false,
+    update : function() {
+      //check boundaries to loop
+      if(this.x > environment.canvas.width){this.x = 0;}
+      if(this.x < 0){this.x = environment.canvas.width;}
+      if(this.y > environment.canvas.height){this.y = 0;}
+      if(this.y < 0){this.y = environment.canvas.height;}
+      if(aaGun){
+        this.drawTarget();
+      }
+    },
+      righ : function(){
+        this.x+=TRACK_SPEED;
+      },
+      lef : function(){
+        this.x-=TRACK_SPEED;
+      },
+      up : function(){
+        this.y-=TRACK_SPEED;
+      },
+      down : function(){
+        this.y+=TRACK_SPEED;
+      },
+      raise : function(){
+        this.z+=RAISE_SPEED;
+      },
+      lower : function(){
+        this.z-=RAISE_SPEED;
+      },
+      drawTarget : function(){
+        ctx = environment.context;
+        ctx.moveTo(this.x,this.y);
+        // TODO: adjust target size to get smaller above and below the fighter's altitude
+        if(Math.abs(fighter.alt - this.z) >= TARGET_THRESHOLD){
+          ctx.strokeStyle = "gray";
+          this.active = false;
+        }
+        else{
+          ctx.strokeStyle = "#FF0000";
+          this.active = true;
+        }
+        ctx.beginPath();
+        ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
+        ctx.stroke();
+      },
+      kill : function() {
+      }
+    }
+</script>
+</html>

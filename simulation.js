@@ -1,7 +1,8 @@
 const AUTOMATION_ON = true; //instantiate AI
 const DEV = true; //Developer mode (cant die)
-
-//neural network parameters
+/***********************************************
+NEURAL NETWORK PARAMETERS
+*************************************************/
 const NUM_INPUTS = 6; //fighter x and y , target x and y
 const NUM_HIDDEN = 20;
 const NUM_OUTPUTS = 3;
@@ -13,70 +14,63 @@ const RIGHT = 1;
 const LOW = 0;
 const HIGH = 1;
 const OUTPUT_THRESHOLD = 0.25; //how close it needs to be to commit to moving
-
-//GAME CONSTANTS
+/************************************************
+GAME CONSTANTS
+************************************************/
 //AA GUN
 const TARGET_SIZE = 30;
 const TRACK_SPEED = 10;
 const RAISE_SPEED = 8;
 const TARGET_THRESHOLD = 50;
-
+const LETHAL = true; //will or will not simulate kill
 //FIGHTER CONSTANTS
-
+KILL_COUNT = 1000;
 // BOTH CONSTANTS
-const MAX_HEIGHT = 1500
-
+const MAX_WIDTH = window.innerWidth;
+const MAX_HEIGHT = window.innerHeight;
+const MAX_ALT = 1500;
 var aaGun = true; //trigger with altitude trip
-
-//set up neural network
+/********************************************************************
+NEURAL NETWORK
+********************************************************************/
 var nn;
 if(AUTOMATION_ON){
   nn = new NeuralNetwork(NUM_INPUTS, NUM_HIDDEN, NUM_OUTPUTS);
-
   //train the network
   let fx, fy, tx, ty;
   for (let i = 0; i < NUM_SAMPLES; i++){
     //random fighter position
     // TODO: may need to be updated
-    fx = Math.random() * window.innerWidth;
-    fy = Math.random() * window.innerHeight;
-    fz = Math.random() * MAX_HEIGHT;
-    // console.log("fx" + fx);
-    // console.log("fy" + fy);
-
+    fx = Math.random() * MAX_WIDTH;
+    fy = Math.random() * MAX_HEIGHT;
+    fz = Math.random() * MAX_ALT;
     //random target positions
-    tx = Math.random() * window.innerWidth;
-    ty = Math.random() * window.innerHeight;
-    tz = Math.random() * MAX_HEIGHT;
-    // console.log("tx" + tx);
-    // console.log("ty" + ty);
-
+    tx = Math.random() * MAX_WIDTH;
+    ty = Math.random() * MAX_HEIGHT;
+    tz = Math.random() * MAX_ALT;
     // calculate vector to fighter
     let track_vector = findVector(tx,ty,tz,fx,fy,fz);
-
     // determine how to move
     let hor = track_vector[0] > 0 ? RIGHT : LEFT;
     let ver = track_vector[1] > 0 ? DOWN : UP;
     let heig = track_vector[2] > 0 ? HIGH : LOW;
-
     // train network
     nn.train(normalizeInput(fx,fy,fz,tx,ty,tz), [hor,ver,heig]);
   }
 }
-
+//Normalize the data for input
 function normalizeInput(fighterX, fighterY, fighterZ, targetX, targetY, targetZ){
   // normalize to between 0 and 1
   let input = [];
-  input[0] = (fighterX/window.innerWidth);
-  input[1] = (fighterY/window.innerHeight);
-  input[2] = (fighterZ/1500);
-
-  input[3] = (targetX/window.innerWidth);
-  input[4] = (targetY/window.innerHeight);
-  input[5] = (targetZ/1500);
-
+  input[0] = (fighterX/MAX_WIDTH);
+  input[1] = (fighterY/MAX_HEIGHT);
+  input[2] = (fighterZ/MAX_HEIGHT);
+  input[3] = (targetX/MAX_WIDTH);
+  input[4] = (targetY/MAX_HEIGHT);
+  input[5] = (targetZ/MAX_HEIGHT);
   return input;
 }
+//calculate attack vector for training data
 function findVector(tx,ty,tz,fx,fy,fz) {
   //calculate components
   let vx = fx - tx;
@@ -84,18 +78,23 @@ function findVector(tx,ty,tz,fx,fy,fz) {
   let vz = fz - tz;
   return [vx,vy,vz];
 }
-
+ /******************************************
+ START
+ ******************************************/
 function startEnvironment() {
   environment.start();
 }
-
+/*******************************************
+SIMULATION ENVIRONMENT
+********************************************/
 var environment = {
   counter : 1,
+  clock : 0,
   //create a canvas element
   canvas : document.createElement("canvas"),
   start : function() {
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
+    this.canvas.width = MAX_WIDTH;
+    this.canvas.height = MAX_HEIGHT;
     this.context = this.canvas.getContext("2d");
     document.body.insertBefore(this.canvas, document.body.childNodes[0]);
     this.interval = setInterval(updateEnvironment, 20);
@@ -105,41 +104,74 @@ var environment = {
       environment.keys = (environment.keys || []);
       environment.keys[e.keyCode] = (e.type == "keydown");
     })
-    window.addEventListener('keyup',function (e){
-      environment.keys[e.keyCode] = (e.type == "keydown");
-    })
+    window.addEventListener('keyup',function (e){environment.keys[e.keyCode] = (e.type == "keydown");})
   },
-  clear : function() { //clear the board of everything before updating
-    this.context.clearRect(0,0,this.canvas.width,this.canvas.height);
+  clear : function() {this.context.clearRect(0,0,MAX_WIDTH,MAX_HEIGHT);}
+}
+/*******************************************************
+AI ANTI AIRCRAFT GUN
+*******************************************************/
+//Anti Air - track a target
+//TODO: 3d Tracking
+//--------------------------------------------------------------------------------------------------------------
+var aa = {
+  x : 20,
+  y : 20,
+  z : 0,
+  active : false,
+  update : function() {
+    //check boundaries to loop
+    if(this.x > MAX_WIDTH){this.x = 0;}
+    if(this.x < 0){this.x = MAX_WIDTH;}
+    if(this.y > MAX_HEIGHT){this.y = 0;}
+    if(this.y < 0){this.y = MAX_HEIGHT;}
+    if(aaGun){this.drawTarget();}
+  },
+    righ : function(){this.x+=TRACK_SPEED;},
+    lef : function(){this.x-=TRACK_SPEED;},
+    up : function(){this.y-=TRACK_SPEED;},
+    down : function(){this.y+=TRACK_SPEED;},
+    raise : function(){this.z+=RAISE_SPEED;},
+    lower : function(){this.z-=RAISE_SPEED;},
+    drawTarget : function(){
+      ctx = environment.context;
+      ctx.moveTo(this.x,this.y);
+      // TODO: adjust target size to get smaller above and below the fighter's altitude
+      if(Math.abs(fighter.alt - this.z) >= TARGET_THRESHOLD){
+        ctx.strokeStyle = "gray";
+        this.active = false;
+      }
+      else{
+        ctx.strokeStyle = "#FF0000";
+        this.active = true;
+      }
+      ctx.beginPath();
+      ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
+      ctx.stroke();
+    },
+    kill : function() {
+      //if target lock for kill count
+      if(!LETHAL){
+        return;
+      }
+      if(fighter.targetLock()){
+        setTimeout(function(){
+          if(fighter.targetLock()){
+            setTimeout(function(){
+              if(fighter.targetLock()){
+                setTimeout(function(){
+                  if(fighter.targetLock()){fighter.alive = false; console.log('kill.');}
+                }, KILL_COUNT);
+              }
+            }, KILL_COUNT);
+          }
+        }, KILL_COUNT);
+      }
+    }
   }
-}
-//stuff to get the canvas running and update it^^
-//--------------------------------------------
-//Triangle stuff (draw it with the x,y at centroid)
-function drawTriangle(ctx, x, y, ang, width, height){
-  ctx.translate(x,y);
-  ctx.rotate(ang);
-  ctx.strokeStyle = "black";
-  ctx.beginPath();
-  ctx.moveTo(0, 0-height/2);
-  ctx.lineTo(0-width/2, 0+height/2);
-  ctx.lineTo(0+width/2, 0+height/2);
-  ctx.closePath();
-  ctx.stroke();
-}
-//DRAW target
-function drawTarget(ctx, x, y, ang,height){
-  ctx.translate(x,y);
-  ctx.rotate(ang);
-  ctx.strokeStyle = "red";
-  ctx.beginPath();
-  // ctx.moveTo(0, -30);
-  ctx.arc(0,-60, 30, 0.5*Math.PI, 2.5 * Math.PI);
-  // ctx.closePath();
-  ctx.stroke();
-}
-//General fighter variable
-//------------------------------------------------------------
+/********************************************************
+FIGHTER CLASS
+*********************************************************/
 var fighter = {
   alive : true,
   counter : 0,
@@ -147,8 +179,8 @@ var fighter = {
   //creating the fighter to control
   width : 15,
   height : 15,
-  x : window.innerWidth/2, //current position
-  y : window.innerHeight/2, //current position
+  x : MAX_WIDTH/2, //current position
+  y : MAX_HEIGHT/2, //current position
   vx : 0,
   vy : 0,
   thr : 0, //will add to velocity instantly
@@ -169,44 +201,45 @@ var fighter = {
     ctx = environment.context;
     if(this.alt <= 200){
       ctx.fillStyle = '#FFFAB3';
-      ctx.fillRect(0,0,environment.canvas.width,environment.canvas.height);
+      ctx.fillRect(0,0,MAX_WIDTH,MAX_HEIGHT);
     }
     if(this.alt <= 100){
       ctx.fillStyle = '#FFCCCC';
-      ctx.fillRect(0,0,environment.canvas.width,environment.canvas.height);
+      ctx.fillRect(0,0,MAX_WIDTH,MAX_HEIGHT);
       if(this.counter < 40){
         ctx.fillStyle = "black";
-        ctx.fillText('**__LOW__ALTITUDE__**',20,environment.canvas.height-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',120,environment.canvas.height-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',220,environment.canvas.height-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',320,environment.canvas.height-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',420,environment.canvas.height-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',20,environment.canvas.height-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',120,environment.canvas.height-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',220,environment.canvas.height-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',320,environment.canvas.height-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',420,environment.canvas.height-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',20,environment.canvas.height-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',120,environment.canvas.height-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',220,environment.canvas.height-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',320,environment.canvas.height-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',420,environment.canvas.height-100);
-
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-20,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-120,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-220,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-320,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-420,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-20,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-120,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-220,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-320,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-420,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-20,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-120,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-220,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-320,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',environment.canvas.width-420,100);
+        //Top
+        ctx.fillText('**__LOW__ALTITUDE__**',20,MAX_HEIGHT-20);
+        ctx.fillText('**__LOW__ALTITUDE__**',120,MAX_HEIGHT-20);
+        ctx.fillText('**__LOW__ALTITUDE__**',220,MAX_HEIGHT-20);
+        ctx.fillText('**__LOW__ALTITUDE__**',320,MAX_HEIGHT-20);
+        ctx.fillText('**__LOW__ALTITUDE__**',420,MAX_HEIGHT-20);
+        ctx.fillText('**__LOW__ALTITUDE__**',20,MAX_HEIGHT-60);
+        ctx.fillText('**__LOW__ALTITUDE__**',120,MAX_HEIGHT-60);
+        ctx.fillText('**__LOW__ALTITUDE__**',220,MAX_HEIGHT-60);
+        ctx.fillText('**__LOW__ALTITUDE__**',320,MAX_HEIGHT-60);
+        ctx.fillText('**__LOW__ALTITUDE__**',420,MAX_HEIGHT-60);
+        ctx.fillText('**__LOW__ALTITUDE__**',20,MAX_HEIGHT-100);
+        ctx.fillText('**__LOW__ALTITUDE__**',120,MAX_HEIGHT-100);
+        ctx.fillText('**__LOW__ALTITUDE__**',220,MAX_HEIGHT-100);
+        ctx.fillText('**__LOW__ALTITUDE__**',320,MAX_HEIGHT-100);
+        ctx.fillText('**__LOW__ALTITUDE__**',420,MAX_HEIGHT-100);
+        //Bottom
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-20,20);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-120,20);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-220,20);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-320,20);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-420,20);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-20,60);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-120,60);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-220,60);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-320,60);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-420,60);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-20,100);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-120,100);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-220,100);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-320,100);
+        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-420,100);
       }else if(this.counter > 90)
       {
         this.counter = 0;
@@ -215,21 +248,15 @@ var fighter = {
       // this.counter = 0;
     }
     ctx.save();
-
     drawTriangle(ctx, this.x, this.y, this.theta, this.width, this.height);
-
     ctx.restore();
     ctx.save();
     if(this.target == true)
     {
       drawTarget(ctx, this.x,this.y, this.theta, this.height);
-      // console.log('target');
       this.target = false;
     }
-
     ctx.restore();
-
-    // console.log('tx:',this.thrx,'ty:',this.thry); //optional telemetry for thrust
   },
   newPos : function(){
     this.theta += this.yaw * Math.PI / 180;
@@ -240,7 +267,6 @@ var fighter = {
     this.thry = this.thr * Math.cos(this.theta);
     if(Math.abs(this.thrx) > 0){this.momentumx = this.thrx;}
     if(Math.abs(this.thry) > 0){this.momentumy = this.thry;}
-
     //check gravity v lift
     this.gravity();
     this.alt += this.lift - this.fall;
@@ -250,55 +276,32 @@ var fighter = {
       this.vx += this.momentumx;
       this.vy += this.momentumy;
     }
-
     //check boundaries to loop
-    if(this.x > environment.canvas.width){this.x = 0;}
-    if(this.x < 0){this.x = environment.canvas.width;}
-    if(this.y > environment.canvas.height){this.y = 0;}
-    if(this.y < 0){this.y = environment.canvas.height;}
-
+    if(this.x > MAX_WIDTH){this.x = 0;}
+    if(this.x < 0){this.x = MAX_WIDTH;}
+    if(this.y > MAX_HEIGHT){this.y = 0;}
+    if(this.y < 0){this.y = MAX_HEIGHT;}
     this.x += this.vx;
     this.y -= this.vy;
   },
   thrust : function(){
-    //Todo: increase acceleration
-    //Todo: adjust for angle
-    if(!this.burn)
-    {
-      this.thr = 10;
-    }
-    else{
-      this.thr = 17;
-    }
+    if(!this.burn){this.thr = 10;}
+    else{this.thr = 17;}
     this.lift = 5;
   },
-  break : function(){
-
-  },
+  break : function(){},
   turn : function(dir){
     //change angle of fighter
-    if(dir == -1){
-      this.yaw-=5;
-    }
-    else if(dir == 1){
-      this.yaw+=5;
-    }
+    if(dir == -1){this.yaw-=5;}
+    else if(dir == 1){this.yaw+=5;}
   },
   drag : function(){
     if(!this.airbrake){
       //stop changes so they dont go on forever
-      if(this.momentumx > 0){
-        this.momentumx -= 0.1;
-      }
-      else if(this.momentumx < 0){
-        this.momentumx += 0.1;
-      }
-      if(this.momentumy > 0){
-        this.momentumy -= 0.1;
-      }
-      else if(this.momentumy < 0){
-        this.momentumy += 0.1;
-      }
+      if(this.momentumx > 0){this.momentumx -= 0.1;}
+      else if(this.momentumx < 0){this.momentumx += 0.1;}
+      if(this.momentumy > 0){this.momentumy -= 0.1;}
+      else if(this.momentumy < 0){this.momentumy += 0.1;}
     }
     else{
       this.momentumx = 0;
@@ -309,7 +312,6 @@ var fighter = {
     this.vx = 0;
     this.vy = 0;
     this.thr = 0;
-    // this.airbrake = false;
     this.yaw = 0; //set yaw back to 0 after the movement
     this.ground();
   },
@@ -320,9 +322,11 @@ var fighter = {
     this.fall += 5;
   },
   climb : function() {
-    if(this.alt <= 1500)
+    if(this.alt <= MAX_HEIGHT)
     {
       this.lift += 10;
+    } else{
+      this.alt = MAX_HEIGHT;
     }
   },
   drop : function() {
@@ -359,9 +363,7 @@ var fighter = {
         ctx.fillStyle = "red";
         ctx.fillText('AA target: locked', 20,210);//output telemetry data
       }else if(fighter.flasher > 90)
-      {
-        fighter.flasher = 0;
-      }
+      {fighter.flasher = 0;}
       fighter.flasher++;
     }
     ctx.beginPath();
@@ -369,17 +371,54 @@ var fighter = {
     ctx.stroke();
   },
   targetLock : function(){
-    if(this.x < aa.x + TARGET_SIZE && this.x > aa.x - TARGET_SIZE && aaGun){
-      return true;
-    }
+    if(this.x < aa.x + TARGET_SIZE && this.x > aa.x - TARGET_SIZE && aaGun){return true;}
     return false;
   }
 }
-//TODO: ADD OBSTACLES AND LAYERS (EVERY 100?)
-//----------------------------------------------------------------------------------------------------
-
-//Updating the environment and fighters
-//---------------------------------------------------------------------------
+//Log the fighter telemetry data for debugging
+//-----------------------------------------------------------------------------------------
+function logTelemetry(clear = false) {
+  if((environment.counter % 15 == 0) && clear)
+  {
+    console.clear();
+    environment.counter = 1;
+  }
+  else{environment.counter++;}
+  console.log('x:',fighter.x,'y:',fighter.y,'vx:',fighter.vx,'vy:',fighter.vy);
+  console.log('thr:',fighter.thr,'yaw:',fighter.yaw,'ang:',fighter.angle);
+  console.log('alt:',fighter.alt,'climb:',fighter.lift-fighter.fall);
+  console.log('mox:',fighter.momentumx,'moy:',fighter.momentumy);//output telemetry data
+}
+/************************************************************
+DRAWING
+************************************************************/
+//stuff to get the canvas running and update it^^
+//--------------------------------------------
+//Triangle stuff (draw it with the x,y at centroid)
+function drawTriangle(ctx, x, y, ang, width, height){
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+  ctx.strokeStyle = "black";
+  ctx.beginPath();
+  ctx.moveTo(0, 0-height/2);
+  ctx.lineTo(0-width/2, 0+height/2);
+  ctx.lineTo(0+width/2, 0+height/2);
+  ctx.closePath();
+  ctx.stroke();
+}
+//DRAW target
+//------------------------------------------------------
+function drawTarget(ctx, x, y, ang,height){
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+  ctx.strokeStyle = "red";
+  ctx.beginPath();
+  ctx.arc(0,-60, 30, 0.5*Math.PI, 2.5 * Math.PI);
+  ctx.stroke();
+}
+/**************************************************************
+UPDATE THE ENVIRONMENT
+*****************************************************************/
 function updateEnvironment() {
   environment.clear();
   if(AUTOMATION_ON)
@@ -406,10 +445,8 @@ function updateEnvironment() {
     }
     fighter.newPos(); //calculate the new position
   }
-
   // logTelemetry();
   fighter.update();
-
   if(!AUTOMATION_ON){
     if(environment.keys && environment.keys[104]){aa.up();}
     if(environment.keys && environment.keys[98]){aa.down();}
@@ -427,112 +464,25 @@ function updateEnvironment() {
     let ty = aa.y;
     let tz = aa.z;
     let predict = nn.feedForward(normalizeInput(fx,fy,fz,tx,ty,tz)).data[0];
-    // console.log(predict);
-
     //make movement (left or right)
     let dLeft = Math.abs(predict[0] - LEFT);
     let dRight = Math.abs(predict[0] - RIGHT);
     //compare to OUTPUT_THRESHOLD
-    if(dLeft < OUTPUT_THRESHOLD){
-      aa.lef();
-    } else if(dRight < OUTPUT_THRESHOLD){
-      aa.righ();
-    }
-
+    if(dLeft < OUTPUT_THRESHOLD){aa.lef();}else if(dRight < OUTPUT_THRESHOLD){aa.righ();}
     //make movement (up or down)
     let dUp = Math.abs(predict[1] - UP);
     let dDown = Math.abs(predict[1] - DOWN);
     //compare to OUTPUT_THRESHOLD
-    if(dUp < OUTPUT_THRESHOLD){
-      aa.up();
-    } else if(dDown < OUTPUT_THRESHOLD){
-      aa.down();
-    }
-
+    if(dUp < OUTPUT_THRESHOLD){aa.up();}else if(dDown < OUTPUT_THRESHOLD){aa.down();}
     //make movement (raise or lower)
     let dRaise = Math.abs(predict[2] - HIGH);
     let dLower = Math.abs(predict[2] - LOW);
     //compare to OUTPUT_THRESHOLD
-    if(dRaise < OUTPUT_THRESHOLD){
-      aa.raise();
-    } else if(dLower < OUTPUT_THRESHOLD){
-      aa.lower();
-    }
+    if(dRaise < OUTPUT_THRESHOLD){aa.raise();}else if(dLower < OUTPUT_THRESHOLD){aa.lower();}
   }
   aa.update();
   fighter.hud();
-  if(fighter.alive){fighter.drag();} //apply drag after calculating the new position
-  //check for key inputs
+  aa.kill();
+  fighter.drag();
+  fighter.ground(); //apply drag after calculating the new position
 }
-//Log the fighter telemetry data
-//-----------------------------------------------------------------------------------------
-function logTelemetry(clear = false) {
-  if((environment.counter % 15 == 0) && clear)
-  {
-    console.clear();
-    environment.counter = 1;
-  }
-  else{
-    environment.counter++;
-  }
-  console.log('x:',fighter.x,'y:',fighter.y,'vx:',fighter.vx,'vy:',fighter.vy);
-  console.log('thr:',fighter.thr,'yaw:',fighter.yaw,'ang:',fighter.angle);
-  console.log('alt:',fighter.alt,'climb:',fighter.lift-fighter.fall);
-  console.log('mox:',fighter.momentumx,'moy:',fighter.momentumy);//output telemetry data
-
-
-}
-//Anti Air - track a target
-//TODO: 3d Tracking
-//--------------------------------------------------------------------------------------------------------------
-
-var aa = {
-  x : 20,
-  y : 20,
-  z : 0,
-  active : false,
-  update : function() {
-    //check boundaries to loop
-    if(this.x > environment.canvas.width){this.x = 0;}
-    if(this.x < 0){this.x = environment.canvas.width;}
-    if(this.y > environment.canvas.height){this.y = 0;}
-    if(this.y < 0){this.y = environment.canvas.height;}
-    if(aaGun){
-      this.drawTarget();
-    }
-  },
-    righ : function(){
-      this.x+=TRACK_SPEED;
-    },
-    lef : function(){
-      this.x-=TRACK_SPEED;
-    },
-    up : function(){
-      this.y-=TRACK_SPEED;
-    },
-    down : function(){
-      this.y+=TRACK_SPEED;
-    },
-    raise : function(){
-      this.z+=RAISE_SPEED;
-    },
-    lower : function(){
-      this.z-=RAISE_SPEED;
-    },
-    drawTarget : function(){
-      ctx = environment.context;
-      ctx.moveTo(this.x,this.y);
-      // TODO: adjust target size to get smaller above and below the fighter's altitude
-      if(Math.abs(fighter.alt - this.z) >= TARGET_THRESHOLD){
-        ctx.strokeStyle = "gray";
-        this.active = false;
-      }
-      else{
-        ctx.strokeStyle = "#FF0000";
-        this.active = true;
-      }
-      ctx.beginPath();
-      ctx.arc(this.x,this.y, TARGET_SIZE, 0.5*Math.PI, 2.5 * Math.PI);
-      ctx.stroke();
-    }
-  }
