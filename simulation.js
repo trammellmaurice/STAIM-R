@@ -339,6 +339,7 @@ var fighter = {
       // console.log('dead');
       if(!DEV){
         this.alive = false;
+        console.log('crash');
       }
       this.alt = 0;
     }
