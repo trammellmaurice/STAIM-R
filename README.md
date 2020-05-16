@@ -42,6 +42,6 @@ AI Fighter Pilot (BASIC)
   __aiFighter.js__
 
 AI Fighter Pilot (ADVANCED)
-* Revise neural net (7 inputs [target 3D position, fighter 3d position, fighter heading], 3 output [yaw, thrust, climb/drop])
+* Updated  neural nets (1 for yaw and thrust && 1 for climb)
 * 3D training sets
-* Update fighter controls
+* Update fighter controls for climb and drop
