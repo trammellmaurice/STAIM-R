@@ -88,7 +88,7 @@ function normalizeInput(fighterX, fighterY, fighterZ, fighterH, targetX, targetY
   return input; //return an array of noramlized positions
 }
 //find the attack angle from the current heading using the attack vector and the current heading
-function findAngle(heading,tx,ty,fx,fy){
+function findAngle(heading,tx,ty,fx,fy){ // FIXME: Meredith likes to turn right
   //find attack vector
   let vx = tx - fx;
   let vy = ty - fy;
