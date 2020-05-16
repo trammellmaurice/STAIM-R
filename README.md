@@ -39,7 +39,7 @@ AI Fighter Pilot (BASIC)
 * Update environment constants
 ----------------------------------------------------------------
 ### STAGE 5 ###
-  __simpilot.js__
+  __aiFighter.js__
 
 AI Fighter Pilot (ADVANCED)
 * Revise neural net (7 inputs [target 3D position, fighter 3d position, fighter heading], 3 output [yaw, thrust, climb/drop])
