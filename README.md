@@ -6,7 +6,7 @@
   __fighter.html__
 
   __simulation.js__
-  
+
 Anti Aircraft Gun V Human Fighter
 * Develop components (Target, Environment, Fighter, HUD)
 * Organize the simulation environment (loop edges, altitudes, warnings)
@@ -45,4 +45,3 @@ AI Fighter Pilot (ADVANCED)
 * Revise neural net (7 inputs [target 3D position, fighter 3d position, fighter heading], 3 output [yaw, thrust, climb/drop])
 * 3D training sets
 * Update fighter controls
-  ----------------------------------------------------------------
