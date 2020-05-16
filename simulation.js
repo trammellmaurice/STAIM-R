@@ -40,7 +40,6 @@ if(AUTOMATION_ON){
   let fx, fy, tx, ty;
   for (let i = 0; i < NUM_SAMPLES; i++){
     //random fighter position
-    // TODO: may need to be updated
     fx = Math.random() * MAX_WIDTH;
     fy = Math.random() * MAX_HEIGHT;
     fz = Math.random() * MAX_ALT;
@@ -112,7 +111,6 @@ var environment = {
 AI ANTI AIRCRAFT GUN
 *******************************************************/
 //Anti Air - track a target
-//TODO: 3d Tracking
 //--------------------------------------------------------------------------------------------------------------
 var aa = {
   x : 20,
@@ -136,7 +134,6 @@ var aa = {
     drawTarget : function(){
       ctx = environment.context;
       ctx.moveTo(this.x,this.y);
-      // TODO: adjust target size to get smaller above and below the fighter's altitude
       if(Math.abs(fighter.alt - this.z) >= TARGET_THRESHOLD){
         ctx.strokeStyle = "gray";
         this.active = false;
@@ -154,13 +151,16 @@ var aa = {
       if(!LETHAL){
         return;
       }
-      if(fighter.targetLock()){
+      if(fighter.targetLock() && fighter.alive){
+        console.log('target_acquired');
         setTimeout(function(){
-          if(fighter.targetLock()){
+          if(fighter.targetLock() && fighter.alive){
+            console.log('target_locked');
             setTimeout(function(){
-              if(fighter.targetLock()){
+              if(fighter.targetLock() && fighter.alive){
+                console.log('strike_inbound');
                 setTimeout(function(){
-                  if(fighter.targetLock()){fighter.alive = false; console.log('kill.');}
+                  if(fighter.targetLock() && fighter.alive){fighter.alive = false; console.log('kill');}
                 }, KILL_COUNT);
               }
             }, KILL_COUNT);
@@ -207,39 +207,41 @@ var fighter = {
       ctx.fillStyle = '#FFCCCC';
       ctx.fillRect(0,0,MAX_WIDTH,MAX_HEIGHT);
       if(this.counter < 40){
+        let message = '**__LOW__ALTITUDE__**';
+        if(!this.alive){message = '**__SIMULATION__OVER__**';}
         ctx.fillStyle = "black";
         //Top
-        ctx.fillText('**__LOW__ALTITUDE__**',20,MAX_HEIGHT-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',120,MAX_HEIGHT-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',220,MAX_HEIGHT-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',320,MAX_HEIGHT-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',420,MAX_HEIGHT-20);
-        ctx.fillText('**__LOW__ALTITUDE__**',20,MAX_HEIGHT-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',120,MAX_HEIGHT-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',220,MAX_HEIGHT-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',320,MAX_HEIGHT-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',420,MAX_HEIGHT-60);
-        ctx.fillText('**__LOW__ALTITUDE__**',20,MAX_HEIGHT-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',120,MAX_HEIGHT-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',220,MAX_HEIGHT-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',320,MAX_HEIGHT-100);
-        ctx.fillText('**__LOW__ALTITUDE__**',420,MAX_HEIGHT-100);
+        ctx.fillText(message,20,MAX_HEIGHT-20);
+        ctx.fillText(message,120,MAX_HEIGHT-20);
+        ctx.fillText(message,220,MAX_HEIGHT-20);
+        ctx.fillText(message,320,MAX_HEIGHT-20);
+        ctx.fillText(message,420,MAX_HEIGHT-20);
+        ctx.fillText(message,20,MAX_HEIGHT-60);
+        ctx.fillText(message,120,MAX_HEIGHT-60);
+        ctx.fillText(message,220,MAX_HEIGHT-60);
+        ctx.fillText(message,320,MAX_HEIGHT-60);
+        ctx.fillText(message,420,MAX_HEIGHT-60);
+        ctx.fillText(message,20,MAX_HEIGHT-100);
+        ctx.fillText(message,120,MAX_HEIGHT-100);
+        ctx.fillText(message,220,MAX_HEIGHT-100);
+        ctx.fillText(message,320,MAX_HEIGHT-100);
+        ctx.fillText(message,420,MAX_HEIGHT-100);
         //Bottom
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-20,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-120,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-220,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-320,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-420,20);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-20,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-120,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-220,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-320,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-420,60);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-20,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-120,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-220,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-320,100);
-        ctx.fillText('**__LOW__ALTITUDE__**',MAX_WIDTH-420,100);
+        ctx.fillText(message,MAX_WIDTH-20,20);
+        ctx.fillText(message,MAX_WIDTH-120,20);
+        ctx.fillText(message,MAX_WIDTH-220,20);
+        ctx.fillText(message,MAX_WIDTH-320,20);
+        ctx.fillText(message,MAX_WIDTH-420,20);
+        ctx.fillText(message,MAX_WIDTH-20,60);
+        ctx.fillText(message,MAX_WIDTH-120,60);
+        ctx.fillText(message,MAX_WIDTH-220,60);
+        ctx.fillText(message,MAX_WIDTH-320,60);
+        ctx.fillText(message,MAX_WIDTH-420,60);
+        ctx.fillText(message,MAX_WIDTH-20,100);
+        ctx.fillText(message,MAX_WIDTH-120,100);
+        ctx.fillText(message,MAX_WIDTH-220,100);
+        ctx.fillText(message,MAX_WIDTH-320,100);
+        ctx.fillText(message,MAX_WIDTH-420,100);
       }else if(this.counter > 90)
       {
         this.counter = 0;
@@ -319,14 +321,15 @@ var fighter = {
     this.target = true;
   },
   gravity : function() {
-    this.fall += 5;
+    if(this.alt>0){this.fall += 5;}
+    else{this.alt = 0;}
   },
   climb : function() {
-    if(this.alt <= MAX_HEIGHT)
+    if(this.alt <= MAX_ALT)
     {
       this.lift += 10;
     } else{
-      this.alt = MAX_HEIGHT;
+      this.alt = MAX_ALT;
     }
   },
   drop : function() {
@@ -334,14 +337,16 @@ var fighter = {
   },
   ground : function() {
     //check if fighter is too low
-    if(this.alt <=0 )
+    if(this.alt <= 0 )
     {
       // console.log('dead');
-      if(!DEV){
+      if(!DEV && this.alive){
         this.alive = false;
         console.log('crash');
       }
       this.alt = 0;
+      this.momentumx = 0;
+      this.momentumy = 0;
     }
   },
   //HUD  telemetry indication
