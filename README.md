@@ -45,3 +45,11 @@ AI Fighter Pilot (ADVANCED)
 * Updated  neural nets (1 for yaw and thrust && 1 for climb)
 * 3D training sets
 * Update fighter controls for climb and drop
+----------------------------------------------------------------
+### STAGE 5B ###
+  __aif.js__
+
+AI Fighter Pilot (ADVANCED)
+* Condensed neural net (yaw, thrust, climb)
+* 3D training sets
+* Update fighter controls for climb and drop
