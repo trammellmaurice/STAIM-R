@@ -64,6 +64,7 @@ AI Fighter Pilot (ADVANCED)
 ### STAGE 1 ###
 
 Stand-alone AI for simulated environment (API pulls environment data)
+
 *Neural Net on Python on RPi
 *Create JS Simulation Environment
 *Create JS Simulated RCV
