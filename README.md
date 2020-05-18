@@ -68,7 +68,7 @@ Stand-alone AI for simulated environment (API pulls environment data)
 *Neural Net on Python on RPi
 *Create JS Simulation Environment
 *Create JS Simulated RCV
-  ** Car
-  ** QuadCopter
-  ** Wing
+  * Car
+  * QuadCopter
+  * Wing
 *Create JS Environment Interfaces
