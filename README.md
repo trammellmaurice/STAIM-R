@@ -65,10 +65,10 @@ AI Fighter Pilot (ADVANCED)
 
 Stand-alone AI for simulated environment (API pulls environment data)
 
-*Neural Net on Python on RPi
-*Create JS Simulation Environment
-*Create JS Simulated RCV
+* Neural Net on Python on RPi
+* Create JS Simulation Environment
+* Create JS Simulated RCV
   * Car
   * QuadCopter
   * Wing
-*Create JS Environment Interfaces
+* Create JS Environment Interfaces
