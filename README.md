@@ -2,6 +2,9 @@
 
 ## TEACH AI TO DOG-FIGHT SIMULATED JETS ##
 ----------------------------------------------
+## PHASE I ##
+  __EXPERIMENTATION & ENVIRONMENT__
+
 ### STAGE 1 ###
   __fighter.html__
 
@@ -53,3 +56,18 @@ AI Fighter Pilot (ADVANCED)
 * Condensed neural net (yaw, thrust, climb)
 * 3D training sets
 * Update fighter controls for climb and drop
+----------------------------------------------------------------
+## PHASE II ##
+
+  __PROTOTYPE AI__
+
+### STAGE 1 ###
+
+Stand-alone AI for simulated environment (API pulls environment data)
+*Neural Net on Python on RPi
+*Create JS Simulation Environment
+*Create JS Simulated RCV
+  ** Car
+  ** QuadCopter
+  ** Wing
+*Create JS Environment Interfaces

@@ -39,19 +39,27 @@ const ALTITUDE_THRESHOLD = 50;
 /********************************************
           NEURAL NETWORK PARAMETERS
 *********************************************/
-// STEP 1: 2D TRACKING (STATIC ALTITUDE)
-const NUM_INPUTS = 7; //FIGHTER x, y, z, and heading + TARGET x, y, and z
-const NUM_HIDDEN = 35;
-const NUM_OUTPUTS = 3; //FIGHTER thrust, yaw, climb
-const NUM_SAMPLES = 1000000; //number of samples
+// FLIGHT BRAIN CONSTANTS
+const F_INPUTS = 7; //FIGHTER x, y, z, and heading + TARGET x, y, and z
+const F_HIDDEN = 35;
+const F_OUTPUTS = 3; //FIGHTER thrust, yaw, climb
+const F_SAMPLES = 1000000; //number of samples
+// TACTICAL BRAIN CONSTANTS
+const T_INPUTS = ;
+const T_HIDDEN = ;
+const T_OUTPUTS = ;
+const T_SAMPLES = ;
+// GENERAL CONSTANTS
 const OUTPUT_THRESHOLD = 0.25; //how close it needs to be to commit to moving
           // NEURAL NETWORK SETUP
-var nn;
+          //TODO: Patrol, Destroy, Evade Strategies
+var flightBrain;
 if(AUTOMATION_ON)
 {
-  nn = new NeuralNetwork(NUM_INPUTS, NUM_HIDDEN, NUM_OUTPUTS);
+  tacBrain = new NeuralNetwork(T_INPUTS,T_HIDDEN,T_OUTPUTS);
+  flightBrain = new NeuralNetwork(F_INPUTS, F_HIDDEN, F_OUTPUTS);
   let fx, fy, fz, fh, tx, ty, tz;
-  for (let i = 0; i < NUM_SAMPLES; i++){
+  for (let i = 0; i < F_SAMPLES; i++){
     // random target positions
     tx = Math.random()*MAX_WIDTH;
     ty = Math.random()*MAX_HEIGHT;
@@ -67,7 +75,7 @@ if(AUTOMATION_ON)
     thrust = 1;
     alt = changeAlt(tz,fz);
     // train the neural net
-    nn.train(normalizeInput(fx,fy,fz,fh,tx,ty,tz), [yaw,thrust,alt]);
+    flightBrain.train(normalizeInput(fx,fy,fz,fh,tx,ty,tz), [yaw,thrust,alt]);
   }
 }
 /**********************************************
@@ -165,7 +173,7 @@ function updateEnvironment(){
       let ty = fighter.y;
       let tz = fighter.alt;
       let heading = uav.heading;
-      let predict = nn.feedForward(normalizeInput(fx,fy,fz,heading,tx,ty,tz)).data[0];
+      let predict = flightBrain.feedForward(normalizeInput(fx,fy,fz,heading,tx,ty,tz)).data[0];
       console.log(predict);
       //make movement (left or right)
       let dLeft = Math.abs(predict[0] - LEFT);
@@ -204,8 +212,9 @@ function updateEnvironment(){
   }
   uav.newPos(); //calculate the new position
   fighter.newPos(); //calculate the new position
-  uav.update(); //update the HUD in the update function
   fighter.update(); //update the HUD in the update function
+  uav.update(); //update the HUD in the update function
+
 }
 /************************************************************
                         DRAWING
@@ -261,33 +270,7 @@ var uav = {
   alt : 500, // should not go to 0 or crash || 0.1 list from thrust -0.1 from drag
   Target : false,
   update : function(){
-    // FIXME: UAV doesnt show below 200m
     ctx = environment.context;
-    if(this.alt <= 200){
-      ctx.fillStyle = '#FFFAB3';
-      ctx.fillRect(0,0,MAX_WIDTH,MAX_HEIGHT);
-    }
-    if(this.alt <= 100){
-      ctx.fillStyle = '#FFCCCC';
-      ctx.fillRect(0,0,MAX_WIDTH,MAX_HEIGHT);
-      if(this.counter < 40){
-        let message = '**__LOW__ALTITUDE__**';
-        if(!this.alive){message = '**__SIMULATION__OVER__**';}
-        ctx.fillStyle = "black";
-        //BOTTOM
-        ctx.fillText(message,20,MAX_HEIGHT-20);
-        ctx.fillText(message,20,MAX_HEIGHT-60);
-        ctx.fillText(message,20,MAX_HEIGHT-100);
-        //TOP
-        ctx.fillText(message,MAX_WIDTH-220,20);
-        ctx.fillText(message,MAX_WIDTH-220,60);
-        ctx.fillText(message,MAX_WIDTH-220,100);
-      }else if(this.counter > 90)
-      {
-        this.counter = 0;
-      }
-      this.counter++;
-    }
     ctx.save();
     drawTriangle(ctx, this.x, this.y, this.theta, this.width, this.height);
     ctx.restore();
