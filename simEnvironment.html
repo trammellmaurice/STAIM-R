@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+canvas {
+    border:1px solid #d3d3d3;
+    background-color: #f1f1f1;
+}
+</style>
+</head>
+<body onload="startEnvironment()">
+<script>
+/*******************************************************
+*                    MISSION
+      Design a lightweight testing environment
+*******************************************************/
+const DEV = true; // Developer mode (Invincibility)
+const MANUAL = false; // Manual Controls
+const HUD = true; // Show telemetry
+const RCV = 0; // 0 = truck, 1 = quad , 2 = wing
+/**********************************************
+        SIMULATION ENVIRONMENT CONSTANTS
+***********************************************/
+const ENV_WIDTH = window.innerWidth;
+const ENV_HEIGHT = window.innerHeight;
+const ENV_ALT = 1500;
+/**********************************************
+          SIMULATION ENVIRONMENT
+***********************************************/
+// START THE ENVIRONMENT
+function startEnvironment() {
+  environment.start();
+}
+//ENVIRONMENT VARIABLE
+var environment = {
+  clock : 0, // clock for time based aspects
+  //create a canvas element
+  canvas : document.createElement("canvas"),
+  start : function() {
+    this.canvas.width = ENV_WIDTH;
+    this.canvas.height = ENV_HEIGHT;
+    this.context = this.canvas.getContext("2d");
+    document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+    this.interval = setInterval(updateEnvironment, 20);
+    //add listeners for keys
+    if(MANUAL){
+      window.addEventListener('keydown',function(e){
+        e.preventDefault();
+        environment.keys = (environment.keys || []);
+        environment.keys[e.keyCode] = (e.type == "keydown");
+      })
+      window.addEventListener('keyup',function (e){environment.keys[e.keyCode] = (e.type == "keydown");})
+    }
+  },
+  cycle : function() {
+    this.context.clearRect(0,0,ENV_WIDTH,ENV_HEIGHT);
+    this.clock++;
+    rcv.stop();
+  },
+  showClock : function()
+  {
+    ctx = environment.context;
+    ctx.fillStyle = "black";
+    ctx.strokeStyle = "black";
+    //update clock
+    ctx.fillText((this.clock/100).toString(),ENV_WIDTH/2, ENV_HEIGHT-40);
+  }
+}
+/**************************************************************
+          UPDATE THE ENVIRONMENT & CONTROL SCHEMA
+*****************************************************************/
+function updateEnvironment(){
+  environment.cycle();
+  // Manual Controls
+  if(MANUAL){
+    if(RCV == 0) // RCV Truck controls
+    {
+      if(environment.keys && environment.keys[38]){rcv.gas();}
+      if(environment.keys && environment.keys[40]){rcv.reverse();}
+      if(environment.keys && environment.keys[37]){rcv.turn(-1);}
+      if(environment.keys && environment.keys[39]){rcv.turn(1);}
+    }
+  }else{
+    // TODO: Interface with AI
+    // IDEA: JQuery call?
+    // NEEDS: All telemetry, target position
+    console.log(rcv.telemetry());
+  }
+  rcv.update();
+  // TODO: Boundaries
+  rcv.hud();
+  environment.showClock();
+}
+/************************************************************
+                        DRAWING
+************************************************************/
+//Triangle stuff (draw it with the x,y at centroid)
+function drawTriangle(ctx, x, y, ang, width, height){
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+  ctx.strokeStyle = "black";
+  ctx.beginPath();
+  ctx.moveTo(0, 0-height/2);
+  ctx.lineTo(0-width/2, 0+height/2);
+  ctx.lineTo(0+width/2, 0+height/2);
+  ctx.closePath();
+  ctx.stroke();
+}
+//DRAW target
+//------------------------------------------------------
+function drawTarget(ctx, x, y, ang,height){
+  ctx.translate(x,y);
+  ctx.rotate(ang);
+  ctx.strokeStyle = "red";
+  ctx.beginPath();
+  ctx.arc(0,-60, 30, 0.5*Math.PI, 2.5 * Math.PI);
+  ctx.stroke();
+}
+/********************************************************
+                    RCV CLASS
+*********************************************************/
+var rcv = {
+  // Attributes
+  alive : true,
+  width : 15,
+  height : 15,
+  xpos : ENV_WIDTH/2, // current position
+  ypos : ENV_HEIGHT/2, // current position
+  heading : 0,
+  // Interfaces
+  speed : 0,
+  steer : 0, // left or right
+  gas : function() // make rcv go forward
+  {
+    this.speed = 10;
+  },
+  reverse : function() // make rcv go backward
+  {
+    this.speed = -7;
+  },
+  turn : function(dir){
+    if(this.speed!=0){
+      (dir>0) ? this.steer=7 : this.steer=-7;
+    }
+  },
+  // Update
+  update : function(){
+    this.newPos();
+    ctx = environment.context;
+    ctx.save();
+    drawTriangle(ctx, this.xpos, this.ypos, this.heading, this.width, this.height);
+    ctx.restore();
+  },
+  // New Position
+  newPos : function(){
+    // FIXME: headings
+    this.heading += this.steer * Math.PI / 180;
+    if(this.heading >= (Math.PI * 2)){this.heading=0;}
+    if(this.heading < 0){this.heading=Math.PI * 2;}
+    this.xpos += this.speed * Math.sin(this.heading);
+    this.ypos -= this.speed * Math.cos(this.heading);
+  },
+  stop : function(){
+    // reset steering and speed
+    this.speed = 0;
+    this.steer = 0;
+  },
+  telemetry : function()  // Return telemetry data in a JSON object (FOR AI)
+  {
+    data = {alive: this.alive, x: this.xpos.toFixed(), y: this.ypos.toFixed(), v: this.speed.toFixed(), heading: (this.heading/Math.PI*180).toFixed()};
+    return data;
+  },
+  hud : function()
+  {
+    data = JSON.stringify(this.telemetry());
+    ctx = environment.context;
+    ctx.fillStyle = "black";
+    ctx.strokeStyle = "black";
+    //update telemetry
+    ctx.fillText(data, 20,20);
+  }
+}
+</script>
